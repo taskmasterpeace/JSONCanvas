@@ -92,6 +92,13 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const [isMarkdownModalOpen, setIsMarkdownModalOpen] = useState(false);
   const [markdownModalContent, setMarkdownModalContent] = useState('');
 
+  // State for adding new properties/items - MOVED EARLIER
+  const [newPropertyKey, setNewPropertyKey] = useState('');
+  const [newPropertyValue, setNewPropertyValue] = useState('');
+  const [newPropertyType, setNewPropertyType] = useState<'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'>('string');
+  const [isAddingProperty, setIsAddingProperty] = useState(false);
+
+
   const keyInputRef = useRef<HTMLInputElement>(null);
   const valueStringInputRef = useRef<HTMLTextAreaElement>(null);
   const valueNumericInputRef = useRef<HTMLInputElement>(null);
@@ -269,52 +276,6 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
     }
   }, [onSetHoveredPath]);
 
-
-  const renderValue = () => {
-    if (isEditing) {
-      if (typeof value === 'string') {
-        return <Textarea ref={valueStringInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" />;
-      }
-      if (typeof value === 'number') {
-        return <Input ref={valueNumericInputRef} type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full" />;
-      }
-      return <Textarea ref={valueGenericInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" placeholder="Enter valid JSON (e.g. true, null, or {...})"/>;
-    }
-
-    let displayValue: React.ReactNode;
-    let valueStringForSearch = ""; 
-
-    if (typeof value === 'string') {
-       valueStringForSearch = value;
-      if (showMarkdownPreview && value.length > 50) { 
-        displayValue = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
-      } else {
-        displayValue = <span className="font-mono text-sm text-green-600 dark:text-green-400 break-all">"{getHighlightedText(value, searchTerm || "")}"</span>;
-      }
-    } else if (typeof value === 'number') {
-      valueStringForSearch = String(value);
-      displayValue = <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{getHighlightedText(String(value), searchTerm || "")}</span>;
-    } else if (typeof value === 'boolean') {
-      valueStringForSearch = String(value);
-      displayValue = <Checkbox checked={value} onCheckedChange={handleBooleanChange} className="ml-1" aria-label={`Value ${value}, toggle boolean`}/>;
-    } else if (value === null) {
-      valueStringForSearch = "null";
-      displayValue = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{getHighlightedText("null", searchTerm || "")}</span>;
-    } else {
-       return null; 
-    }
-    
-    return <span data-searchable-value={valueStringForSearch}>{displayValue}</span>;
-  };
-
-  const typeLabel = Array.isArray(value) ? 'Array' : typeof value === 'object' && value !== null ? 'Object' : '';
-
-  const [newPropertyKey, setNewPropertyKey] = useState('');
-  const [newPropertyValue, setNewPropertyValue] = useState('');
-  const [newPropertyType, setNewPropertyType] = useState<'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'>('string');
-  const [isAddingProperty, setIsAddingProperty] = useState(false);
-
-
   const handleAddPropertyConfirm = useCallback(() => {
     if (!onAddProperty || !newPropertyKey.trim()) {
         toast({ title: 'Error', description: 'Property key cannot be empty.', variant: 'destructive' });
@@ -362,6 +323,46 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
         toast({ title: 'Error adding item', description: e.message, variant: 'destructive' });
     }
   }, [newPropertyValue, newPropertyType, onAddItem, path, toast]);
+
+
+  const renderValue = () => {
+    if (isEditing) {
+      if (typeof value === 'string') {
+        return <Textarea ref={valueStringInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" />;
+      }
+      if (typeof value === 'number') {
+        return <Input ref={valueNumericInputRef} type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full" />;
+      }
+      return <Textarea ref={valueGenericInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" placeholder="Enter valid JSON (e.g. true, null, or {...})"/>;
+    }
+
+    let displayValue: React.ReactNode;
+    let valueStringForSearch = ""; 
+
+    if (typeof value === 'string') {
+       valueStringForSearch = value;
+      if (showMarkdownPreview && value.length > 50) { 
+        displayValue = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
+      } else {
+        displayValue = <span className="font-mono text-sm text-green-600 dark:text-green-400 break-all">"{getHighlightedText(value, searchTerm || "")}"</span>;
+      }
+    } else if (typeof value === 'number') {
+      valueStringForSearch = String(value);
+      displayValue = <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{getHighlightedText(String(value), searchTerm || "")}</span>;
+    } else if (typeof value === 'boolean') {
+      valueStringForSearch = String(value);
+      displayValue = <Checkbox checked={value} onCheckedChange={handleBooleanChange} className="ml-1" aria-label={`Value ${value}, toggle boolean`}/>;
+    } else if (value === null) {
+      valueStringForSearch = "null";
+      displayValue = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{getHighlightedText("null", searchTerm || "")}</span>;
+    } else {
+       return null; 
+    }
+    
+    return <span data-searchable-value={valueStringForSearch}>{displayValue}</span>;
+  };
+
+  const typeLabel = Array.isArray(value) ? 'Array' : typeof value === 'object' && value !== null ? 'Object' : '';
 
   const buttonRenderIndex = React.useRef(0);
   useEffect(() => {
