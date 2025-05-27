@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { JsonValue, JsonPath, EditableJsonNodeProps } from './types';
+import type { JsonValue, JsonPath, EditableJsonNodeProps, ExpansionTrigger } from './types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,11 +44,11 @@ const getNestingLevelClasses = (depth: number) => {
 
 // Helper function to highlight search term in text
 const getHighlightedText = (text: string, highlight: string): React.ReactNode => {
-  if (!highlight.trim()) {
+  if (!highlight || !text || !highlight.trim()) {
     return text;
   }
   const regex = new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  const parts = text.split(regex);
+  const parts = String(text).split(regex); // Ensure text is a string
   return (
     <>
       {parts.map((part, i) =>
@@ -84,7 +84,10 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [editValue, setEditValue] = useState<string>(JSON.stringify(value));
   const [newKeyName, setNewKeyName] = useState<string>(nodeKey || '');
+  
+  // Default to expanded, global trigger can override this
   const [isExpandedState, setIsExpandedState] = useState(true); 
+  
   const [showMarkdownPreview, setShowMarkdownPreview] = useState(false);
   const [isEnhanceDialogOpen, setIsEnhanceDialogOpen] = useState(false);
   const [isMarkdownModalOpen, setIsMarkdownModalOpen] = useState(false);
@@ -92,23 +95,30 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
 
   const { toast } = useToast();
-
-  const isExpanded = useMemo(() => {
-    if (expansionTrigger && (typeof value === 'object' && value !== null)) {
-      return expansionTrigger.type === 'expand';
-    }
-    return isExpandedState;
-  }, [expansionTrigger, value, isExpandedState]);
   
   useEffect(() => {
+    // This effect updates the local expansion state based on the global trigger
     if (expansionTrigger && (typeof value === 'object' && value !== null)) {
       setIsExpandedState(expansionTrigger.type === 'expand');
     }
-  }, [expansionTrigger, value]);
+    // If expansionTrigger becomes null (e.g. new data loaded), local state is maintained
+    // or defaults to true if node is new.
+  }, [expansionTrigger, value]); // Rerun if global trigger changes or node value changes
+
+
+  const isExpanded = useMemo(() => {
+    // If a global trigger is active for objects/arrays, it overrides local state.
+    if (expansionTrigger && (typeof value === 'object' && value !== null)) {
+      return expansionTrigger.type === 'expand';
+    }
+    // Otherwise, use the local state.
+    return isExpandedState;
+  }, [expansionTrigger, value, isExpandedState]);
+
 
   const toggleExpansion = useCallback(() => {
     if (typeof value === 'object' && value !== null) {
-      setIsExpandedState(prev => !prev);
+      setIsExpandedState(prev => !prev); // This updates the local state
     }
   }, [value]);
 
@@ -128,8 +138,15 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
         parsedValue = parseFloat(editValue);
         if (isNaN(parsedValue)) throw new Error("Invalid number");
       } else if (typeof value === 'boolean') {
-        parsedValue = value; 
-      } else {
+        // Boolean is handled by Checkbox, this path is for JSON text editing of a boolean
+        if (editValue.toLowerCase() === 'true') parsedValue = true;
+        else if (editValue.toLowerCase() === 'false') parsedValue = false;
+        else throw new Error("Invalid boolean string");
+      } else if (value === null) {
+         if (editValue.toLowerCase() === 'null') parsedValue = null;
+         else throw new Error("Invalid null string");
+      }
+      else { // object or array (or trying to parse a non-string as one)
         parsedValue = JSON.parse(editValue);
       }
       onUpdate(path, parsedValue);
@@ -146,15 +163,19 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       setIsEditingKey(false);
       toast({title: "Key Renamed"});
     } else {
-      setIsEditingKey(false);
-      if (newKeyName.trim() === nodeKey) return; 
-      toast({ title: 'Error', description: 'Key name cannot be empty or unchanged.', variant: 'destructive' });
+      setIsEditingKey(false); // Close editor even if no change or error
+      if (newKeyName.trim() === nodeKey) return; // No actual change
+      if (!newKeyName.trim()) {
+        toast({ title: 'Error', description: 'Key name cannot be empty.', variant: 'destructive' });
+      }
     }
   }, [newKeyName, nodeKey, onRenameKey, path, toast]);
 
-  const handleBooleanChange = useCallback((checked: boolean) => {
-    onUpdate(path, checked);
-    toast({ title: 'Value Updated' });
+  const handleBooleanChange = useCallback((checked: boolean | 'indeterminate') => {
+    if (typeof checked === 'boolean') {
+      onUpdate(path, checked);
+      toast({ title: 'Value Updated' });
+    }
   }, [onUpdate, path, toast]);
 
   const handleSummarize = useCallback(async () => {
@@ -186,7 +207,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const handleCopyToClipboard = useCallback(async () => {
     const valueToCopy = (typeof value === 'object' && value !== null) || typeof value === 'boolean'
         ? JSON.stringify(value, null, 2) 
-        : String(value);
+        : String(value); // Handles string, number, null
     try {
       await navigator.clipboard.writeText(valueToCopy);
       toast({ title: 'Copied to clipboard!', description: `Value: "${valueToCopy.substring(0,70)}${valueToCopy.length > 70 ? '...' : ''}"` });
@@ -217,29 +238,32 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       if (typeof value === 'number') {
         return <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full" />;
       }
-      return <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" placeholder="Enter valid JSON"/>;
+       // For boolean or null, or if user wants to edit complex type as raw JSON
+      return <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" placeholder="Enter valid JSON (e.g. true, null, or {...})"/>;
     }
 
     let displayValue: React.ReactNode;
-    let valueStringForSearch = "";
+    let valueStringForSearch = ""; // Used for data-attribute for easier DOM search if needed
 
     if (typeof value === 'string') {
        valueStringForSearch = value;
       if (showMarkdownPreview && value.length > 50) { 
         displayValue = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
       } else {
-        displayValue = <span className="font-mono text-sm text-green-600 dark:text-green-400 break-all">"{searchTerm ? getHighlightedText(value, searchTerm) : value}"</span>;
+        displayValue = <span className="font-mono text-sm text-green-600 dark:text-green-400 break-all">"{getHighlightedText(value, searchTerm || "")}"</span>;
       }
     } else if (typeof value === 'number') {
       valueStringForSearch = String(value);
-      displayValue = <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{searchTerm ? getHighlightedText(String(value), searchTerm) : value}</span>;
+      displayValue = <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{getHighlightedText(String(value), searchTerm || "")}</span>;
     } else if (typeof value === 'boolean') {
       valueStringForSearch = String(value);
-      displayValue = <Checkbox checked={value} onCheckedChange={(checkedState) => handleBooleanChange(Boolean(checkedState))} className="ml-1" />;
+      displayValue = <Checkbox checked={value} onCheckedChange={handleBooleanChange} className="ml-1" aria-label={`Value ${value}, toggle boolean`}/>;
     } else if (value === null) {
       valueStringForSearch = "null";
-      displayValue = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{searchTerm ? getHighlightedText("null", searchTerm) : "null"}</span>;
+      displayValue = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{getHighlightedText("null", searchTerm || "")}</span>;
     } else {
+       // This case should not be reached if JsonNode is used for primitives only when value is not object/array.
+       // If value is object/array, JsonNode renders children, not this renderValue().
        return null; 
     }
     
@@ -322,11 +346,11 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       group-focus-within/node-item-header:opacity-100 group-focus-within/node-item-header:translate-x-0 
       transition-all ease-out duration-200 ${delayClass}
     `;
-  }, [delayClasses]); // delayClasses is constant, so this useCallback is stable
+  }, []); 
 
 
   const isPrimitiveOrNull = typeof value !== 'object' || value === null;
-  const displayKey = nodeKey !== undefined ? (searchTerm ? getHighlightedText(nodeKey, searchTerm) : nodeKey) : '';
+  const displayKey = nodeKey !== undefined ? getHighlightedText(nodeKey, searchTerm || "") : '';
 
 
   return (
@@ -338,17 +362,17 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       >
         <div className="flex items-center space-x-2 group/node-item-header min-h-[32px]">
           {(typeof value === 'object' && value !== null) && (
-            <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center">
+            <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center" aria-label={isExpanded ? "Collapse" : "Expand"}>
               {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </Button>
           )}
 
-          {nodeKey !== undefined && (
+          {nodeKey !== undefined && ( // nodeKey is present for object properties and potentially for root if titled
             isEditingKey ? (
               <div className="flex items-center">
                 <Input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} className="h-7 font-mono text-sm" autoFocus onBlur={handleKeyUpdate} onKeyDown={(e) => e.key === 'Enter' && handleKeyUpdate()} />
-                <Button variant="ghost" size="icon" onClick={handleKeyUpdate} className="h-6 w-6 p-1"><CheckIcon size={16} /></Button>
-                <Button variant="ghost" size="icon" onClick={() => setIsEditingKey(false)} className="h-6 w-6 p-1"><XIcon size={16} /></Button>
+                <Button variant="ghost" size="icon" onClick={handleKeyUpdate} className="h-6 w-6 p-1" aria-label="Save key"><CheckIcon size={16} /></Button>
+                <Button variant="ghost" size="icon" onClick={() => { setIsEditingKey(false); setNewKeyName(nodeKey);}} className="h-6 w-6 p-1" aria-label="Cancel rename"><XIcon size={16} /></Button>
               </div>
             ) : (
               <span className="font-semibold text-sm text-primary group-hover/node-item:text-accent cursor-pointer py-1" onClick={() => setIsEditingKey(true)}>
@@ -357,12 +381,12 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
             )
           )}
           
-          {typeof value === 'object' && value !== null && (
+          {typeof value === 'object' && value !== null && ( // For objects and arrays, show type label
              <span className="text-xs text-muted-foreground ml-1">
                 {typeLabel}
                 {isExpanded && ((Array.isArray(value) && value.length === 0) || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) ? ' (empty)' : ''}
-                {!isExpanded && Array.isArray(value) ? ` [${value.length} items]` : ''}
-                {!isExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} keys}` : ''}
+                {!isExpanded && Array.isArray(value) ? ` [${value.length} item${value.length === 1 ? '' : 's'}]` : ''}
+                {!isExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
              </span>
           )}
 
@@ -375,7 +399,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1"><CheckIcon size={16} /></Button>
+                      <Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1" aria-label="Save value"><CheckIcon size={16} /></Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Save Value</p></TooltipContent>
                   </Tooltip>
@@ -383,39 +407,39 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)} className="h-6 w-6 p-1"><XIcon size={16} /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)} className="h-6 w-6 p-1" aria-label="Cancel edit value"><XIcon size={16} /></Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Cancel Edit</p></TooltipContent>
                   </Tooltip>
                 </div>
               </>
             ) : (
-              typeof value !== 'object' && value !== null && typeof value !== 'boolean' && (
+              typeof value !== 'object' && value !== null && typeof value !== 'boolean' && ( // Don't show edit button for booleans (handled by checkbox) or complex types (handled by children)
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)} className="h-6 w-6 p-1"><Edit3 size={16} /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => { setEditValue(typeof value === 'string' ? value : JSON.stringify(value)); setIsEditing(true);}} className="h-6 w-6 p-1" aria-label="Edit value"><Edit3 size={16} /></Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Edit Value</p></TooltipContent>
                   </Tooltip>
                 </div>
               )
             )}
-             {nodeKey !== undefined && onRenameKey && (
+             {nodeKey !== undefined && onRenameKey && ( // Only show rename if it's a property of an object (has nodeKey and onRenameKey)
                 <div className={getButtonAnimationClasses()}>
                  <Tooltip>
                     <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={() => setIsEditingKey(true)} className="h-6 w-6 p-1"><ALargeSmall size={16}/></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setIsEditingKey(true)} className="h-6 w-6 p-1" aria-label="Rename key"><ALargeSmall size={16}/></Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Rename Key</p></TooltipContent>
                   </Tooltip>
                 </div>
             )}
-            {(isPrimitiveOrNull || Array.isArray(value) || typeof value === 'object') && value !== null && ( 
+            {(isPrimitiveOrNull || Array.isArray(value) || typeof value === 'object') && value !== undefined && ( // Copy works for all types
               <div className={getButtonAnimationClasses()}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={handleCopyToClipboard} className="h-6 w-6 p-1">
+                    <Button variant="ghost" size="icon" onClick={handleCopyToClipboard} className="h-6 w-6 p-1" aria-label="Copy value">
                       <ClipboardCopy size={16} />
                     </Button>
                   </TooltipTrigger>
@@ -428,7 +452,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1">
+                      <Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1" aria-label={showMarkdownPreview ? "Show raw text" : "Preview markdown"}>
                         <MessageSquare size={16} />
                       </Button>
                     </TooltipTrigger>
@@ -438,7 +462,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => { setMarkdownModalContent(value); setIsMarkdownModalOpen(true);}} className="h-6 w-6 p-1">
+                      <Button variant="ghost" size="icon" onClick={() => { setMarkdownModalContent(value); setIsMarkdownModalOpen(true);}} className="h-6 w-6 p-1" aria-label="Expand markdown editor">
                         <Maximize2 size={16} />
                       </Button>
                     </TooltipTrigger>
@@ -448,7 +472,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={handleSummarize} className="h-6 w-6 p-1"><Wand2 size={16} /></Button>
+                      <Button variant="ghost" size="icon" onClick={handleSummarize} className="h-6 w-6 p-1" aria-label="Summarize with AI"><Wand2 size={16} /></Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Summarize (AI)</p></TooltipContent>
                   </Tooltip>
@@ -456,27 +480,29 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => setIsEnhanceDialogOpen(true)} className="h-6 w-6 p-1"><Sparkles size={16} /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setIsEnhanceDialogOpen(true)} className="h-6 w-6 p-1" aria-label="Enhance with AI"><Sparkles size={16} /></Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Enhance (AI)</p></TooltipContent>
                   </Tooltip>
                 </div>
               </>
             )}
-            <div className={getButtonAnimationClasses()}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => onDelete(path, nodeKey)} className="h-6 w-6 p-1 text-destructive hover:text-destructive-foreground hover:bg-destructive"><Trash2 size={16} /></Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Delete {nodeKey !==undefined ? 'Property' : 'Item'}</p></TooltipContent>
-              </Tooltip>
-            </div>
+            {onDelete && ( // Conditionally render delete button
+              <div className={getButtonAnimationClasses()}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(path, nodeKey)} className="h-6 w-6 p-1 text-destructive hover:text-destructive-foreground hover:bg-destructive" aria-label={`Delete ${nodeKey !==undefined ? 'property' : 'item'}`}><Trash2 size={16} /></Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Delete {nodeKey !==undefined ? 'Property' : 'Item'}</p></TooltipContent>
+                </Tooltip>
+              </div>
+            )}
           </div>
         </div>
         
         {isAddingProperty && isExpanded && (
             <div className="pl-6 my-2 space-y-2 border-l-2 border-dashed border-gray-300 dark:border-gray-600 ml-2 py-2 rounded-md">
-                {typeof value === 'object' && !Array.isArray(value) && value !== null && (
+                {typeof value === 'object' && !Array.isArray(value) && value !== null && onAddProperty && ( // Check onAddProperty for objects
                      <Input 
                         placeholder="New property key" 
                         value={newPropertyKey} 
@@ -520,14 +546,14 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
             {Array.isArray(value)
               ? value.map((item, index) => (
                   <JsonNode
-                    key={`${path.join('-')}-item-${index}-${typeof item}-${String(item).slice(0,10)}`}
+                    key={`${path.join('-')}-item-${index}`} // Simplified key
                     path={[...path, index]}
                     value={item}
                     onUpdate={onUpdate}
                     onDelete={onDelete}
-                    onAddProperty={onAddProperty}
-                    onAddItem={onAddItem}
-                    onRenameKey={onRenameKey}
+                    onAddProperty={onAddProperty} // Pass down for nested objects
+                    onAddItem={onAddItem}       // Pass down for nested arrays
+                    onRenameKey={onRenameKey}   // Pass down for nested objects
                     depth={depth + 1}
                     getApiKey={getApiKey}
                     expansionTrigger={expansionTrigger}
@@ -537,7 +563,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 ))
               : Object.entries(value).map(([key, val]) => (
                   <JsonNode
-                    key={`${path.join('-')}-prop-${key}-${typeof val}-${String(val).slice(0,10)}`}
+                    key={`${path.join('-')}-prop-${key}`} // Simplified key
                     path={[...path, key]}
                     nodeKey={key}
                     value={val}
@@ -553,9 +579,11 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                     onSetHoveredPath={onSetHoveredPath}
                   />
                 ))}
+            {(onAddProperty && typeof value === 'object' && !Array.isArray(value)) || (onAddItem && Array.isArray(value)) ? (
              <Button variant="outline" size="sm" onClick={() => setIsAddingProperty(true)} className="mt-2 ml-4 h-7 text-xs">
                 <PlusCircle size={14} className="mr-1" /> {Array.isArray(value) ? "Add Item" : "Add Property"}
             </Button>
+            ) : null}
           </div>
         )}
 
@@ -583,13 +611,15 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                     value={markdownModalContent}
                     onChange={(e) => setMarkdownModalContent(e.target.value)}
                     className="flex-grow font-mono text-sm resize-none h-full"
+                    aria-label="Markdown Editor"
                   />
                 </div>
                 <div className="flex flex-col h-full">
                   <Label className="mb-1">Preview</Label>
                   <div 
                     className="flex-grow prose dark:prose-invert max-w-none p-3 border rounded-md overflow-y-auto bg-muted h-full"
-                    dangerouslySetInnerHTML={{ __html: marked(markdownModalContent) as string }} 
+                    dangerouslySetInnerHTML={{ __html: marked(markdownModalContent) as string }}
+                    aria-label="Markdown Preview"
                   />
                 </div>
               </div>
@@ -609,18 +639,3 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 };
 
 export const JsonNode = React.memo(JsonNodeComponent);
-
-// Helper to compare props for React.memo, can be customized if needed
-// For now, default shallow comparison by React.memo should be okay,
-// especially with useCallback for function props.
-// If performance issues persist with complex 'value' props, a custom areEqual could be implemented.
-// const areEqual = (prevProps: EditableJsonNodeProps, nextProps: EditableJsonNodeProps) => {
-//   return prevProps.value === nextProps.value &&
-//          prevProps.nodeKey === nextProps.nodeKey &&
-//          prevProps.depth === nextProps.depth &&
-//          prevProps.expansionTrigger === nextProps.expansionTrigger &&
-//          prevProps.searchTerm === nextProps.searchTerm &&
-//          prevProps.path.join(',') === nextProps.path.join(',');
-//   // Note: Function props (onUpdate, etc.) should be stable due to useCallback in parent
-// };
-// export const JsonNode = React.memo(JsonNodeComponent, areEqual);
