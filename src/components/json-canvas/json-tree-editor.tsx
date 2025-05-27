@@ -1,13 +1,14 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { JsonValue, JsonPath } from './types';
 import { JsonNode } from './json-node';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { UnfoldVertical, FoldVertical } from 'lucide-react';
+import { UnfoldVertical, FoldVertical, Search, Info } from 'lucide-react';
 
 
 interface JsonTreeEditorProps {
@@ -19,6 +20,8 @@ interface JsonTreeEditorProps {
 
 export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: JsonTreeEditorProps) {
   const [expansionTrigger, setExpansionTrigger] = useState<{ type: 'expand' | 'collapse', timestamp: number } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [hoveredPath, setHoveredPath] = useState<JsonPath | null>(null);
   
   const handleUpdate = (path: JsonPath, newValue: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData)); // Deep clone
@@ -110,17 +113,38 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     }
   };
 
-  const handleExpandAll = () => {
+  const handleExpandAll = useCallback(() => {
     setExpansionTrigger({ type: 'expand', timestamp: Date.now() });
+  }, []);
+
+  const handleCollapseAll = useCallback(() => {
+    setExpansionTrigger({ type: 'collapse', timestamp: Date.now() });
+  }, []);
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value);
   };
 
-  const handleCollapseAll = () => {
-    setExpansionTrigger({ type: 'collapse', timestamp: Date.now() });
+  const handleSetHoveredPath = useCallback((path: JsonPath | null) => {
+    setHoveredPath(path);
+  }, []);
+
+  const formatPathForBreadcrumbs = (path: JsonPath | null): string => {
+    if (!path || path.length === 0) return 'Hover over a node to see its path';
+    // If the first segment is the title itself, and it's an object/array root, 
+    // we might not need to show it if it's redundant with the CardTitle.
+    // For now, keep it simple.
+    const rootSegment = title || 'root';
+    const displayPath = path.map(segment => 
+        typeof segment === 'number' ? `[${segment}]` : `.${segment}`
+    ).join('');
+    return `${rootSegment}${displayPath.startsWith('.') ? '' : '.'}${displayPath.startsWith('.') ? displayPath.substring(1) : displayPath}`;
   };
+
 
   if (typeof jsonData !== 'object' || jsonData === null) {
     return (
-      <Card className="my-4 shadow-lg">
+      <Card className="my-4 shadow-lg bg-card">
         <CardHeader>
           {title && <CardTitle className="text-xl font-semibold text-primary">{title}</CardTitle>}
         </CardHeader>
@@ -133,6 +157,8 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
             depth={0}
             getApiKey={getApiKey}
             expansionTrigger={expansionTrigger}
+            searchTerm={searchTerm}
+            onSetHoveredPath={handleSetHoveredPath}
           />
         </CardContent>
       </Card>
@@ -142,38 +168,50 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   return (
     <TooltipProvider>
       <Card className="my-4 shadow-lg bg-card">
-        {title && (
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-xl font-semibold text-primary">{title}</CardTitle>
-              {(typeof jsonData === 'object' && jsonData !== null && Object.keys(jsonData).length > 0) && (
-                <div className="flex space-x-1">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={handleExpandAll} className="h-7 w-7">
-                        <UnfoldVertical size={18} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Expand All</p></TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={handleCollapseAll} className="h-7 w-7">
-                        <FoldVertical size={18} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Collapse All</p></TooltipContent>
-                  </Tooltip>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-        )}
-        <CardContent className="pt-4">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-center mb-2">
+            {title && <CardTitle className="text-xl font-semibold text-primary">{title}</CardTitle>}
+            {(typeof jsonData === 'object' && jsonData !== null && Object.keys(jsonData).length > 0) && (
+              <div className="flex space-x-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={handleExpandAll} className="h-7 w-7">
+                      <UnfoldVertical size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Expand All</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={handleCollapseAll} className="h-7 w-7">
+                      <FoldVertical size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Collapse All</p></TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+          </div>
+           <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search in this section..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className="pl-8 h-9 bg-input"
+            />
+          </div>
+          <div className="mt-2 text-xs text-muted-foreground min-h-[1.25rem] flex items-center">
+            <Info size={12} className="mr-1.5 flex-shrink-0" />
+            <span className="truncate">{formatPathForBreadcrumbs(hoveredPath)}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-2">
           <JsonNode
               path={[]} 
               value={jsonData} 
-              nodeKey={title} 
+              nodeKey={title} // This might be confusing if jsonData is an array at root of section
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               onAddProperty={handleAddProperty}
@@ -182,6 +220,8 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
               depth={0}
               getApiKey={getApiKey}
               expansionTrigger={expansionTrigger}
+              searchTerm={searchTerm}
+              onSetHoveredPath={handleSetHoveredPath}
             />
         </CardContent>
       </Card>

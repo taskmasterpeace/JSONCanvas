@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { JsonValue, JsonPath, EditableJsonNodeProps } from './types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +42,29 @@ const getNestingLevelClasses = (depth: number) => {
   return `border-l-2 pl-3 ml-1 my-1 ${selectedBorder} ${selectedBg} rounded-r-md py-1 group/node-item`;
 };
 
+// Helper function to highlight search term in text
+const getHighlightedText = (text: string, highlight: string): React.ReactNode => {
+  if (!highlight.trim()) {
+    return text;
+  }
+  const regex = new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+};
+
+
 export function JsonNode({ 
   path, 
   value, 
@@ -53,13 +76,15 @@ export function JsonNode({
   onRenameKey, 
   depth, 
   getApiKey,
-  expansionTrigger // New prop
+  expansionTrigger,
+  searchTerm,
+  onSetHoveredPath
 }: EditableJsonNodeProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [editValue, setEditValue] = useState<string>(JSON.stringify(value));
   const [newKeyName, setNewKeyName] = useState<string>(nodeKey || '');
-  const [isExpanded, setIsExpanded] = useState(true); // Default to expanded
+  const [isExpandedState, setIsExpandedState] = useState(true); 
   const [showMarkdownPreview, setShowMarkdownPreview] = useState(false);
   const [isEnhanceDialogOpen, setIsEnhanceDialogOpen] = useState(false);
   const [isMarkdownModalOpen, setIsMarkdownModalOpen] = useState(false);
@@ -68,16 +93,33 @@ export function JsonNode({
 
   const { toast } = useToast();
 
+  // Memoize isExpanded to prevent unnecessary re-renders unless specific props change
+  const isExpanded = useMemo(() => {
+    if (expansionTrigger && (typeof value === 'object' && value !== null)) {
+      return expansionTrigger.type === 'expand';
+    }
+    return isExpandedState;
+  }, [expansionTrigger, value, isExpandedState]);
+
+  // Effect to handle internal expansion state changes
+  useEffect(() => {
+    if (expansionTrigger && (typeof value === 'object' && value !== null)) {
+      setIsExpandedState(expansionTrigger.type === 'expand');
+    }
+  }, [expansionTrigger, value]);
+
+  // Toggle internal expansion state
+  const toggleExpansion = () => {
+    if (typeof value === 'object' && value !== null) {
+      setIsExpandedState(prev => !prev);
+    }
+  };
+
+
   useEffect(() => {
     setEditValue(typeof value === 'string' ? value : JSON.stringify(value));
     if (nodeKey) setNewKeyName(nodeKey);
   }, [value, nodeKey]);
-
-  useEffect(() => {
-    if (expansionTrigger && (typeof value === 'object' && value !== null)) {
-      setIsExpanded(expansionTrigger.type === 'expand');
-    }
-  }, [expansionTrigger, value]);
 
 
   const handleValueUpdate = () => {
@@ -157,6 +199,18 @@ export function JsonNode({
     }
   }, [value, toast]);
 
+  const handleMouseEnter = () => {
+    if (onSetHoveredPath) {
+      onSetHoveredPath(path);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (onSetHoveredPath) {
+      onSetHoveredPath(null);
+    }
+  };
+
 
   const renderValue = () => {
     if (isEditing) {
@@ -169,16 +223,32 @@ export function JsonNode({
       return <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" placeholder="Enter valid JSON"/>;
     }
 
+    let displayValue: React.ReactNode;
+    let valueStringForSearch = "";
+
     if (typeof value === 'string') {
+       valueStringForSearch = value;
       if (showMarkdownPreview && value.length > 50) { 
-        return <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
+        displayValue = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
+      } else {
+        displayValue = <span className="font-mono text-sm text-green-600 dark:text-green-400 break-all">"{searchTerm ? getHighlightedText(value, searchTerm) : value}"</span>;
       }
-      return <span className="font-mono text-sm text-green-600 dark:text-green-400 break-all">"{value}"</span>;
+    } else if (typeof value === 'number') {
+      valueStringForSearch = String(value);
+      displayValue = <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{searchTerm ? getHighlightedText(String(value), searchTerm) : value}</span>;
+    } else if (typeof value === 'boolean') {
+      valueStringForSearch = String(value);
+      displayValue = <Checkbox checked={value} onCheckedChange={(checkedState) => handleBooleanChange(Boolean(checkedState))} className="ml-1" />;
+      // Checkbox itself doesn't need text highlighting, but its string representation might match
+    } else if (value === null) {
+      valueStringForSearch = "null";
+      displayValue = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{searchTerm ? getHighlightedText("null", searchTerm) : "null"}</span>;
+    } else {
+       return null; // Objects and arrays are handled by recursive rendering
     }
-    if (typeof value === 'number') return <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{value}</span>;
-    if (typeof value === 'boolean') return <Checkbox checked={value} onCheckedChange={(checkedState) => handleBooleanChange(Boolean(checkedState))} className="ml-1" />;
-    if (value === null) return <span className="font-mono text-sm text-gray-500 dark:text-gray-400">null</span>;
-    return null; 
+    
+    // Add a general data attribute for easier selection if needed for search highlighting logic at parent level
+    return <span data-searchable-value={valueStringForSearch}>{displayValue}</span>;
   };
 
   const typeLabel = Array.isArray(value) ? 'Array' : typeof value === 'object' && value !== null ? 'Object' : '';
@@ -262,13 +332,20 @@ export function JsonNode({
     `;
   };
 
+  const isPrimitiveOrNull = typeof value !== 'object' || value === null;
+  const displayKey = nodeKey !== undefined ? (searchTerm ? getHighlightedText(nodeKey, searchTerm) : nodeKey) : '';
+
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className={cn("space-y-1", depth > 0 && getNestingLevelClasses(depth))}>
+      <div 
+        className={cn("space-y-1", depth > 0 && getNestingLevelClasses(depth))}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
         <div className="flex items-center space-x-2 group/node-item-header min-h-[32px]">
           {(typeof value === 'object' && value !== null) && (
-            <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)} className="h-6 w-6 p-1 self-center">
+            <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center">
               {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </Button>
           )}
@@ -282,7 +359,7 @@ export function JsonNode({
               </div>
             ) : (
               <span className="font-semibold text-sm text-primary group-hover/node-item:text-accent cursor-pointer py-1" onClick={() => setIsEditingKey(true)}>
-                {nodeKey}:
+                {displayKey}:
               </span>
             )
           )}
@@ -296,7 +373,8 @@ export function JsonNode({
              </span>
           )}
 
-          {typeof value !== 'object' ? renderValue() : value === null ? renderValue() : null}
+          {isPrimitiveOrNull ? renderValue() : null}
+
 
           <div className="flex items-center space-x-1 ml-auto opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100">
             {isEditing ? (
@@ -340,7 +418,7 @@ export function JsonNode({
                   </Tooltip>
                 </div>
             )}
-            {(typeof value !== 'object' || value === null || Array.isArray(value)) && (
+            {isPrimitiveOrNull && ( // Only show copy for primitives and null, arrays/objects can be large
               <div className={getButtonAnimationClasses()}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -449,7 +527,7 @@ export function JsonNode({
             {Array.isArray(value)
               ? value.map((item, index) => (
                   <JsonNode
-                    key={`${path.join('-')}-${index}`} // Ensure unique key for re-renders
+                    key={`${path.join('-')}-item-${index}-${typeof item === 'object' ? 'obj' : String(item).slice(0,5)}`} // More robust key
                     path={[...path, index]}
                     value={item}
                     onUpdate={onUpdate}
@@ -460,11 +538,13 @@ export function JsonNode({
                     depth={depth + 1}
                     getApiKey={getApiKey}
                     expansionTrigger={expansionTrigger}
+                    searchTerm={searchTerm}
+                    onSetHoveredPath={onSetHoveredPath}
                   />
                 ))
               : Object.entries(value).map(([key, val]) => (
                   <JsonNode
-                    key={`${path.join('-')}-${key}`} // Ensure unique key for re-renders
+                    key={`${path.join('-')}-prop-${key}-${typeof val === 'object' ? 'obj' : String(val).slice(0,5)}`} // More robust key
                     path={[...path, key]}
                     nodeKey={key}
                     value={val}
@@ -476,6 +556,8 @@ export function JsonNode({
                     depth={depth + 1}
                     getApiKey={getApiKey}
                     expansionTrigger={expansionTrigger}
+                    searchTerm={searchTerm}
+                    onSetHoveredPath={onSetHoveredPath}
                   />
                 ))}
              <Button variant="outline" size="sm" onClick={() => setIsAddingProperty(true)} className="mt-2 ml-4 h-7 text-xs">

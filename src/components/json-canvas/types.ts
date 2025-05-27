@@ -17,5 +17,8 @@ export interface EditableJsonNodeProps {
   onRenameKey?: (path: JsonPath, oldKey: string, newKey: string) => void; // For object keys
   depth: number;
   getApiKey: () => string | null;
-  expansionTrigger?: { type: 'expand' | 'collapse', timestamp: number } | null; // New prop
+  expansionTrigger?: { type: 'expand' | 'collapse', timestamp: number } | null;
+  searchTerm?: string; // For highlighting search matches
+  onSetHoveredPath?: (path: JsonPath | null) => void; // For breadcrumbs
 }
+
