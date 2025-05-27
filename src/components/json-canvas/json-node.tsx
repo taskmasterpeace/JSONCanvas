@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -120,6 +121,17 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
     setIsMarkdownModalOpen(false);
     toast({ title: 'Markdown Content Updated' });
   };
+
+  const handleCopyToClipboard = useCallback(async () => {
+    if (typeof value !== 'string') return;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: 'Copied to clipboard!', description: `Value: "${value.substring(0,50)}${value.length > 50 ? '...' : ''}"` });
+    } catch (err) {
+      toast({ title: 'Failed to copy', description: 'Could not copy text to clipboard.', variant: 'destructive' });
+      console.error('Failed to copy text: ', err);
+    }
+  }, [value, toast]);
 
 
   const renderValue = () => {
@@ -278,6 +290,14 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
             )}
             {typeof value === 'string' && (
               <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={handleCopyToClipboard} className="h-6 w-6 p-1">
+                      <ClipboardCopy size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Copy Value</p></TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1">
@@ -449,3 +469,6 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
     </TooltipProvider>
   );
 }
+
+
+    
