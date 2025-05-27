@@ -1,3 +1,4 @@
+
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonObject = { [key: string]: JsonValue };
 export type JsonArray = JsonValue[];
@@ -16,4 +17,5 @@ export interface EditableJsonNodeProps {
   onRenameKey?: (path: JsonPath, oldKey: string, newKey: string) => void; // For object keys
   depth: number;
   getApiKey: () => string | null;
+  expansionTrigger?: { type: 'expand' | 'collapse', timestamp: number } | null; // New prop
 }

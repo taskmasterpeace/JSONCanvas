@@ -42,12 +42,24 @@ const getNestingLevelClasses = (depth: number) => {
   return `border-l-2 pl-3 ml-1 my-1 ${selectedBorder} ${selectedBg} rounded-r-md py-1 group/node-item`;
 };
 
-export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProperty, onAddItem, onRenameKey, depth, getApiKey }: EditableJsonNodeProps) {
+export function JsonNode({ 
+  path, 
+  value, 
+  nodeKey, 
+  onUpdate, 
+  onDelete, 
+  onAddProperty, 
+  onAddItem, 
+  onRenameKey, 
+  depth, 
+  getApiKey,
+  expansionTrigger // New prop
+}: EditableJsonNodeProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [editValue, setEditValue] = useState<string>(JSON.stringify(value));
   const [newKeyName, setNewKeyName] = useState<string>(nodeKey || '');
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(true); // Default to expanded
   const [showMarkdownPreview, setShowMarkdownPreview] = useState(false);
   const [isEnhanceDialogOpen, setIsEnhanceDialogOpen] = useState(false);
   const [isMarkdownModalOpen, setIsMarkdownModalOpen] = useState(false);
@@ -61,6 +73,13 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
     if (nodeKey) setNewKeyName(nodeKey);
   }, [value, nodeKey]);
 
+  useEffect(() => {
+    if (expansionTrigger && (typeof value === 'object' && value !== null)) {
+      setIsExpanded(expansionTrigger.type === 'expand');
+    }
+  }, [expansionTrigger, value]);
+
+
   const handleValueUpdate = () => {
     try {
       let parsedValue: JsonValue;
@@ -70,7 +89,7 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
         parsedValue = parseFloat(editValue);
         if (isNaN(parsedValue)) throw new Error("Invalid number");
       } else if (typeof value === 'boolean') {
-        parsedValue = value; // Boolean is handled by Checkbox, direct edit not typical
+        parsedValue = value; 
       } else {
         parsedValue = JSON.parse(editValue);
       }
@@ -110,7 +129,6 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
       return;
     }
     try {
-      // TODO: Add loading state indicator
       const result = await summarizeJsonSection({ jsonSection: value });
       onUpdate(path, result.summary); 
       toast({ title: 'Summary Generated', description: 'Content summarized by AI.' });
@@ -148,12 +166,11 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
       if (typeof value === 'number') {
         return <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full" />;
       }
-      // For editing null, or other complex types (though arrays/objects are not edited this way directly)
       return <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" placeholder="Enter valid JSON"/>;
     }
 
     if (typeof value === 'string') {
-      if (showMarkdownPreview && value.length > 50) { // Only show markdown preview for longer strings
+      if (showMarkdownPreview && value.length > 50) { 
         return <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
       }
       return <span className="font-mono text-sm text-green-600 dark:text-green-400 break-all">"{value}"</span>;
@@ -222,7 +239,7 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
 
   let buttonRenderIndex = 0;
   const delayClasses = [
-    "", // 0ms
+    "", 
     "delay-75",
     "delay-100",
     "delay-150",
@@ -237,8 +254,6 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
   const getButtonAnimationClasses = () => {
     const delayClass = delayClasses[buttonRenderIndex] || delayClasses[delayClasses.length -1];
     buttonRenderIndex++;
-    // When hovered or focused-within, button becomes visible (opacity-100) and slides to translateX-0
-    // Initial state: opacity-0, translateX-2 (slightly to the right)
     return `
       opacity-0 transform translate-x-2 
       group-hover/node-item-header:opacity-100 group-hover/node-item-header:translate-x-0 
@@ -283,7 +298,6 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
 
           {typeof value !== 'object' ? renderValue() : value === null ? renderValue() : null}
 
-          {/* Action Buttons Container: Fades in quickly. Individual buttons inside handle their own transform + delay. */}
           <div className="flex items-center space-x-1 ml-auto opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100">
             {isEditing ? (
               <>
@@ -326,7 +340,6 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
                   </Tooltip>
                 </div>
             )}
-            {/* Copy button applies to strings, numbers, booleans, and null. For objects/arrays, it copies their stringified version. */}
             {(typeof value !== 'object' || value === null || Array.isArray(value)) && (
               <div className={getButtonAnimationClasses()}>
                 <Tooltip>
@@ -436,7 +449,7 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
             {Array.isArray(value)
               ? value.map((item, index) => (
                   <JsonNode
-                    key={index}
+                    key={`${path.join('-')}-${index}`} // Ensure unique key for re-renders
                     path={[...path, index]}
                     value={item}
                     onUpdate={onUpdate}
@@ -446,11 +459,12 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
                     onRenameKey={onRenameKey}
                     depth={depth + 1}
                     getApiKey={getApiKey}
+                    expansionTrigger={expansionTrigger}
                   />
                 ))
               : Object.entries(value).map(([key, val]) => (
                   <JsonNode
-                    key={key}
+                    key={`${path.join('-')}-${key}`} // Ensure unique key for re-renders
                     path={[...path, key]}
                     nodeKey={key}
                     value={val}
@@ -461,6 +475,7 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
                     onRenameKey={onRenameKey}
                     depth={depth + 1}
                     getApiKey={getApiKey}
+                    expansionTrigger={expansionTrigger}
                   />
                 ))}
              <Button variant="outline" size="sm" onClick={() => setIsAddingProperty(true)} className="mt-2 ml-4 h-7 text-xs">
@@ -517,5 +532,3 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
     </TooltipProvider>
   );
 }
-
-    

@@ -1,9 +1,14 @@
+
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { JsonValue, JsonPath } from './types';
 import { JsonNode } from './json-node';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { UnfoldVertical, FoldVertical } from 'lucide-react';
+
 
 interface JsonTreeEditorProps {
   jsonData: JsonValue;
@@ -13,6 +18,7 @@ interface JsonTreeEditorProps {
 }
 
 export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: JsonTreeEditorProps) {
+  const [expansionTrigger, setExpansionTrigger] = useState<{ type: 'expand' | 'collapse', timestamp: number } | null>(null);
   
   const handleUpdate = (path: JsonPath, newValue: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData)); // Deep clone
@@ -30,8 +36,8 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     let parent = null;
     let lastSegment = null;
 
-    if (path.length === 0) { // Deleting the root (not typical for this component structure)
-      onJsonChange({}); // Or null, depending on desired behavior
+    if (path.length === 0) { 
+      onJsonChange({}); 
       return;
     }
     
@@ -47,22 +53,17 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
       current.splice(Number(targetKeyOrIndex), 1);
     } else if (typeof current === 'object' && current !== null) {
       delete current[targetKeyOrIndex as string];
-    } else if (parent && lastSegment !== null) { // Deleting a top-level property from the perspective of this editor
+    } else if (parent && lastSegment !== null) { 
         if (Array.isArray(parent)) {
             parent.splice(Number(lastSegment), 1);
         } else {
-            delete parent[lastSegment];
+            delete parent[lastSegment as string]; // Ensure lastSegment is treated as string for object keys
         }
     }
 
-
-    // If path is empty, it means we are operating on jsonData directly.
-    // This case should be handled if a top-level key/item is deleted from a tab.
-    // For now, assuming path always has at least one element.
-    if (path.length === 1 && (typeof jsonData === 'object' && jsonData !== null && !Array.isArray(jsonData))) {
+    if (path.length === 1 && (typeof newJson === 'object' && newJson !== null && !Array.isArray(newJson))) {
       delete (newJson as any)[path[0]];
     }
-
 
     onJsonChange(newJson);
   };
@@ -99,7 +100,6 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     }
     if (typeof current === 'object' && !Array.isArray(current) && current !== null && oldKey in current) {
         if (newKey in current) {
-            // Handle key collision if necessary, e.g., toast error
             console.error("New key already exists");
             return;
         }
@@ -110,6 +110,13 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     }
   };
 
+  const handleExpandAll = () => {
+    setExpansionTrigger({ type: 'expand', timestamp: Date.now() });
+  };
+
+  const handleCollapseAll = () => {
+    setExpansionTrigger({ type: 'collapse', timestamp: Date.now() });
+  };
 
   if (typeof jsonData !== 'object' || jsonData === null) {
     return (
@@ -119,40 +126,65 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
         </CardHeader>
         <CardContent>
           <JsonNode
-            path={[]} // Path is to the root value itself
+            path={[]} 
             value={jsonData}
-            onUpdate={(path, newValue) => onJsonChange(newValue)} // Root update
-            onDelete={() => onJsonChange(null)} // Deleting root
+            onUpdate={(path, newValue) => onJsonChange(newValue)} 
+            onDelete={() => onJsonChange(null)} 
             depth={0}
             getApiKey={getApiKey}
+            expansionTrigger={expansionTrigger}
           />
         </CardContent>
       </Card>
     );
   }
   
-  // If jsonData is an object or array, render its contents
   return (
-    <Card className="my-4 shadow-lg bg-card">
-      {title && (
-        <CardHeader>
-          <CardTitle className="text-xl font-semibold text-primary">{title}</CardTitle>
-        </CardHeader>
-      )}
-      <CardContent className="pt-4">
-         <JsonNode
-            path={[]} // Represents the root of the current `jsonData` being edited
-            value={jsonData} // Pass the whole object/array
-            nodeKey={title} // Pass the title as nodeKey if it's the root of a section
-            onUpdate={handleUpdate}
-            onDelete={handleDelete}
-            onAddProperty={handleAddProperty}
-            onAddItem={handleAddItem}
-            onRenameKey={handleRenameKey}
-            depth={0}
-            getApiKey={getApiKey}
-          />
-      </CardContent>
-    </Card>
+    <TooltipProvider>
+      <Card className="my-4 shadow-lg bg-card">
+        {title && (
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl font-semibold text-primary">{title}</CardTitle>
+              {(typeof jsonData === 'object' && jsonData !== null && Object.keys(jsonData).length > 0) && (
+                <div className="flex space-x-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={handleExpandAll} className="h-7 w-7">
+                        <UnfoldVertical size={18} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Expand All</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={handleCollapseAll} className="h-7 w-7">
+                        <FoldVertical size={18} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Collapse All</p></TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+        )}
+        <CardContent className="pt-4">
+          <JsonNode
+              path={[]} 
+              value={jsonData} 
+              nodeKey={title} 
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+              onAddProperty={handleAddProperty}
+              onAddItem={handleAddItem}
+              onRenameKey={handleRenameKey}
+              depth={0}
+              getApiKey={getApiKey}
+              expansionTrigger={expansionTrigger}
+            />
+        </CardContent>
+      </Card>
+    </TooltipProvider>
   );
 }
