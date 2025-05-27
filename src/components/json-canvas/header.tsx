@@ -1,9 +1,10 @@
+
 "use client";
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, Zap, ClipboardPaste } from 'lucide-react'; // Added Zap/ClipboardPaste for Quick Import
+import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, AlertTriangle } from 'lucide-react'; 
 
 interface HeaderProps {
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -14,7 +15,7 @@ interface HeaderProps {
   canRedo: boolean;
   onOpenApiKeyDialog: () => void;
   onOpenEditEntireJsonDialog: () => void;
-  onOpenQuickImportDialog: () => void; // New prop
+  onOpenQuickImportDialog: () => void; 
 }
 
 export function Header({
@@ -26,7 +27,7 @@ export function Header({
   canRedo,
   onOpenApiKeyDialog,
   onOpenEditEntireJsonDialog,
-  onOpenQuickImportDialog, // New prop
+  onOpenQuickImportDialog, 
 }: HeaderProps) {
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -50,16 +51,16 @@ export function Header({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={onOpenQuickImportDialog}>
-                  <ClipboardPaste className="h-5 w-5" /> {/* Icon for Quick Import */}
+                  <ClipboardPaste className="h-5 w-5" /> 
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Quick Import (Paste Text)</p></TooltipContent>
+              <TooltipContent><p>Quick Import (Paste Text & AI Convert)</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={() => importInputRef.current?.click()}>
                   <FileUp className="h-5 w-5" />
-                  <input type="file" accept=".json" ref={importInputRef} onChange={onImport} className="hidden" />
+                  <input type="file" accept=".json,application/json" ref={importInputRef} onChange={onImport} className="hidden" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Import JSON File</p></TooltipContent>
@@ -78,7 +79,7 @@ export function Header({
                   <FileJson2 className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Edit Entire JSON</p></TooltipContent>
+              <TooltipContent><p>Edit Entire JSON (Raw + AI Fix)</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -102,7 +103,17 @@ export function Header({
                   <Settings className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>OpenAI API Key</p></TooltipContent>
+              <TooltipContent><p>Google AI API Key</p></TooltipContent>
+            </Tooltip>
+             <Tooltip>
+              <TooltipTrigger asChild>
+                 <Button variant="ghost" size="icon" asChild>
+                    <a href="https://firebase.google.com/docs/studio" target="_blank" rel="noopener noreferrer" aria-label="Powered by Firebase Studio">
+                       <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                    </a>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Warning: This is an AI-generated app (experimental)</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -120,3 +131,5 @@ export function Header({
     </TooltipProvider>
   );
 }
+
+    

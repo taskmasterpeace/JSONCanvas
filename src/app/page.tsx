@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -5,47 +6,63 @@ import { JsonTreeEditor } from '@/components/json-canvas/json-tree-editor';
 import { Header } from '@/components/json-canvas/header';
 import { ApiKeyDialog } from '@/components/json-canvas/api-key-dialog';
 import { EditEntireJsonDialog } from '@/components/json-canvas/edit-entire-json-dialog';
-import { QuickImportDialog } from '@/components/json-canvas/quick-import-dialog'; // New Import
+import { QuickImportDialog } from '@/components/json-canvas/quick-import-dialog';
 import type { JsonValue, JsonObject } from '@/components/json-canvas/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { ClipboardPaste } from 'lucide-react'; // Added import
+import { ClipboardPaste } from 'lucide-react';
 
 const initialJson: JsonValue = {
   "projectInfo": {
-    "projectName": "JSON Canvas Demo",
-    "version": "1.0.2",
-    "description": "A sample project to demonstrate JSON Canvas features. Edit this JSON to see changes reflected in the tree view. Use AI features to summarize or enhance text fields.",
+    "projectName": "JSON Canvas Advanced Demo",
+    "version": "1.1.0",
+    "description": "Welcome! This JSON demonstrates various data types and structures you can edit. Try AI features on text fields!",
+    "status": null,
+    "isActive": true,
+    "tags": ["demo", "json", "canvas", "ai"],
+    "contact": {
+      "name": "JSON Canvas Support",
+      "email": "support@example.jsoncanvas.com",
+      "matrixId": "@support:jsoncanvas.com"
+    },
     "features": [
       "Interactive Tree Editing",
-      "AI Summarization & Enhancement",
-      "Markdown Preview & Full Editor",
+      "AI Summarization & Enhancement for strings",
+      "Markdown Preview & Full Editor for long strings",
       "Import/Export JSON",
       "Undo/Redo Functionality",
-      "AI Quick Import",
-      "AI JSON Formatting"
+      "AI Quick Import (Paste any text!)",
+      "AI JSON Formatting & Correction"
     ],
-    "lastUpdated": null
+    "lastUpdated": "2024-07-15T10:30:00Z",
+    "readmeContent": "# Project Alpha\n\nThis is a *Markdown* example.\n\n- Feature 1\n- Feature 2\n\n```json\n{\n  \"sample\": \"code block\"\n}\n```\n\nVisit [our website](https://example.com) for more."
   },
   "userSettings": {
     "theme": "system-preference",
     "notifications": {
       "email": true,
       "sms": false,
-      "push": true
+      "push": true,
+      "frequency": 24
     },
-    "apiKeyStatus": "Not Set"
+    "apiKeyStatus": "Not Set",
+    "preferences": {
+      "showTooltips": true,
+      "fontSize": 14
+    }
   },
   "sampleData": [
-    100, 
-    250.75, 
-    {"type": "complex", "value": 42, "active": true},
-    "Another string item"
+    100,
+    250.75,
+    { "id": "item_1", "type": "complex", "value": 42, "active": true, "metadata": null },
+    "Another string item in the array",
+    false,
+    [1, 2, 3, {"nested": "array"}]
   ],
-  "notes": "This is a root-level note. You can edit any part of this JSON structure."
+  "notes": "This is a root-level note. You can edit any part of this JSON structure. Long strings like 'readmeContent' can be viewed and edited as Markdown. Use the AI features by clicking the icons next to string values."
 };
 
 
@@ -56,16 +73,15 @@ export default function Home() {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
   const [isEditEntireJsonDialogOpen, setIsEditEntireJsonDialogOpen] = useState(false);
-  const [isQuickImportDialogOpen, setIsQuickImportDialogOpen] = useState(false); // New state
+  const [isQuickImportDialogOpen, setIsQuickImportDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
-    const storedKey = localStorage.getItem('openai_api_key');
+    const storedKey = localStorage.getItem('google_ai_api_key'); // UPDATED localStorage key
     if (storedKey) {
       setApiKey(storedKey);
-      // Update apiKeyStatus in jsonData if it exists
       setJsonData(prevJson => {
         if (typeof prevJson === 'object' && prevJson !== null && !Array.isArray(prevJson) && 'userSettings' in prevJson) {
           const userSettings = prevJson.userSettings as JsonObject;
@@ -74,7 +90,7 @@ export default function Home() {
               ...prevJson,
               userSettings: {
                 ...userSettings,
-                apiKeyStatus: "Set (Loaded from Local Storage)"
+                apiKeyStatus: "Google AI Key Set (Loaded from Local Storage)" // UPDATED message
               }
             };
           }
@@ -124,13 +140,12 @@ export default function Home() {
         }
       };
       reader.readAsText(file);
-      event.target.value = ''; // Reset file input
+      event.target.value = ''; 
     }
   };
 
   const handleQuickImport = (newJson: JsonValue) => {
-    updateJsonData(newJson); // This replaces the entire current JSON data
-    // No separate toast here, QuickImportDialog handles its own toasts
+    updateJsonData(newJson);
   };
 
   const handleExport = () => {
@@ -191,7 +206,6 @@ export default function Home() {
   
   const handleApiKeySave = (newApiKey: string) => {
     setApiKey(newApiKey);
-    // Update apiKeyStatus in jsonData if it exists
     setJsonData(prevJson => {
       if (typeof prevJson === 'object' && prevJson !== null && !Array.isArray(prevJson) && 'userSettings' in prevJson) {
         const userSettings = prevJson.userSettings as JsonObject;
@@ -200,7 +214,7 @@ export default function Home() {
             ...prevJson,
             userSettings: {
               ...userSettings,
-              apiKeyStatus: "Set"
+              apiKeyStatus: "Google AI Key Set" // UPDATED message
             }
           };
         }
@@ -237,7 +251,7 @@ export default function Home() {
         canRedo={currentHistoryIndex < history.length - 1}
         onOpenApiKeyDialog={() => setIsApiKeyDialogOpen(true)}
         onOpenEditEntireJsonDialog={() => setIsEditEntireJsonDialogOpen(true)}
-        onOpenQuickImportDialog={() => setIsQuickImportDialogOpen(true)} // New prop
+        onOpenQuickImportDialog={() => setIsQuickImportDialogOpen(true)}
       />
       <ScrollArea className="flex-grow">
         <main className="container mx-auto p-4">
@@ -272,7 +286,7 @@ export default function Home() {
                 <CardContent>
                     <JsonTreeEditor
                         jsonData={jsonData}
-                        onJsonChange={handleJsonChange} // This allows editing even if it's not an object at the root
+                        onJsonChange={handleJsonChange}
                         getApiKey={getApiKey}
                         title="Root Value"
                     />
@@ -288,7 +302,7 @@ export default function Home() {
               <p>
                 This application allows you to load, edit, and save JSON documents directly in your browser. 
                 Use the tabs above to navigate top-level sections of your JSON.
-                Click on values to edit them, use icons for actions like renaming keys, deleting items, or AI-powered enhancements.
+                Click on values to edit them, use icons for actions like renaming keys, deleting items, or AI-powered enhancements for strings.
                 Try the <ClipboardPaste className="inline h-4 w-4 align-middle" /> <strong>Quick Import</strong> button in the header to paste any text and have AI convert it to JSON!
               </p>
               <div className="grid md:grid-cols-2 gap-4">
@@ -299,17 +313,18 @@ export default function Home() {
                 <strong>Key Features:</strong>
               </p>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Interactive tree view for complex JSON structures.</li>
+                <li>Interactive tree view for complex JSON structures (objects, arrays, strings, numbers, booleans, nulls).</li>
                 <li>AI-powered Quick Import: Paste any text, get JSON.</li>
-                <li>AI-powered JSON formatting and error correction.</li>
+                <li>AI-powered JSON formatting and error correction via "Edit Entire JSON".</li>
                 <li>Full CRUD operations at any nesting level.</li>
-                <li>Markdown preview and dedicated modal for long text fields.</li>
-                <li>AI-powered summarization and content enhancement.</li>
+                <li>Markdown preview and dedicated modal editor for long text fields.</li>
+                <li>AI-powered summarization and content enhancement for string values.</li>
                 <li>Local import/export of JSON files.</li>
                 <li>Undo/Redo functionality for safe editing.</li>
+                <li>Copy values (strings, numbers, booleans) to clipboard.</li>
               </ul>
               <p className="text-sm text-muted-foreground">
-                Your data and API key (if provided) are stored locally in your browser and are not sent to any server other than OpenAI when using AI features.
+                Your data and Google AI API key (if provided for AI features) are stored locally in your browser. The key is sent to Google AI services when using AI features.
               </p>
             </CardContent>
           </Card>
@@ -336,3 +351,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
