@@ -85,14 +85,14 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const [editValue, setEditValue] = useState<string>(JSON.stringify(value));
   const [newKeyName, setNewKeyName] = useState<string>(nodeKey || '');
   
-  const [isExpandedState, setIsExpandedState] = useState(true); 
+  const [isLocallyExpanded, setIsLocallyExpanded] = useState(true); 
   
   const [showMarkdownPreview, setShowMarkdownPreview] = useState(false);
   const [isEnhanceDialogOpen, setIsEnhanceDialogOpen] = useState(false);
   const [isMarkdownModalOpen, setIsMarkdownModalOpen] = useState(false);
   const [markdownModalContent, setMarkdownModalContent] = useState('');
 
-  // State for adding new properties/items - MOVED EARLIER
+  // State for adding new properties/items
   const [newPropertyKey, setNewPropertyKey] = useState('');
   const [newPropertyValue, setNewPropertyValue] = useState('');
   const [newPropertyType, setNewPropertyType] = useState<'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'>('string');
@@ -108,24 +108,18 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
   const { toast } = useToast();
   
-  useEffect(() => {
-    if (expansionTrigger && (typeof value === 'object' && value !== null)) {
-      setIsExpandedState(expansionTrigger.type === 'expand');
-    }
-  }, [expansionTrigger, value]);
-
-
-  const isExpanded = useMemo(() => {
-    if (expansionTrigger && (typeof value === 'object' && value !== null)) {
+  // Determine effective expansion state
+  const isEffectivelyExpanded = useMemo(() => {
+    if (expansionTrigger && typeof value === 'object' && value !== null) {
       return expansionTrigger.type === 'expand';
     }
-    return isExpandedState;
-  }, [expansionTrigger, value, isExpandedState]);
+    return isLocallyExpanded;
+  }, [expansionTrigger, value, isLocallyExpanded]);
 
 
   const toggleExpansion = useCallback(() => {
     if (typeof value === 'object' && value !== null) {
-      setIsExpandedState(prev => !prev);
+      setIsLocallyExpanded(prev => !prev);
     }
   }, [value]);
 
@@ -399,8 +393,8 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       >
         <div className="flex items-center space-x-2 group/node-item-header min-h-[32px]">
           {(typeof value === 'object' && value !== null) && (
-            <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center" aria-label={isExpanded ? "Collapse" : "Expand"}>
-              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center" aria-label={isEffectivelyExpanded ? "Collapse" : "Expand"}>
+              {isEffectivelyExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </Button>
           )}
 
@@ -431,9 +425,9 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
           {typeof value === 'object' && value !== null && ( 
              <span className="text-xs text-muted-foreground ml-1">
                 {typeLabel}
-                {isExpanded && ((Array.isArray(value) && value.length === 0) || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) ? ' (empty)' : ''}
-                {!isExpanded && Array.isArray(value) ? ` [${value.length} item${value.length === 1 ? '' : 's'}]` : ''}
-                {!isExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
+                {isEffectivelyExpanded && ((Array.isArray(value) && value.length === 0) || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) ? ' (empty)' : ''}
+                {!isEffectivelyExpanded && Array.isArray(value) ? ` [${value.length} item${value.length === 1 ? '' : 's'}]` : ''}
+                {!isEffectivelyExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
              </span>
           )}
 
@@ -563,7 +557,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
           </div>
         </div>
         
-        {isAddingProperty && isExpanded && (
+        {isAddingProperty && isEffectivelyExpanded && (
             <div className="pl-6 my-2 space-y-2 border-l-2 border-dashed border-gray-300 dark:border-gray-600 ml-2 py-2 rounded-md">
                 {typeof value === 'object' && !Array.isArray(value) && value !== null && onAddProperty && ( 
                      <Input 
@@ -606,7 +600,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
         )}
 
 
-        {isExpanded && typeof value === 'object' && value !== null && (
+        {isEffectivelyExpanded && typeof value === 'object' && value !== null && (
           <div className={cn("pl-0", depth > 0 && "ml-0")}> 
             {Array.isArray(value)
               ? value.map((item, index) => (
