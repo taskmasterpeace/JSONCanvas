@@ -3,7 +3,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github } from 'lucide-react';
+import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, Zap, ClipboardPaste } from 'lucide-react'; // Added Zap/ClipboardPaste for Quick Import
 
 interface HeaderProps {
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -14,6 +14,7 @@ interface HeaderProps {
   canRedo: boolean;
   onOpenApiKeyDialog: () => void;
   onOpenEditEntireJsonDialog: () => void;
+  onOpenQuickImportDialog: () => void; // New prop
 }
 
 export function Header({
@@ -24,7 +25,8 @@ export function Header({
   onRedo,
   canRedo,
   onOpenApiKeyDialog,
-  onOpenEditEntireJsonDialog
+  onOpenEditEntireJsonDialog,
+  onOpenQuickImportDialog, // New prop
 }: HeaderProps) {
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -45,6 +47,14 @@ export function Header({
             <h1 className="text-2xl font-semibold text-primary">JSON Canvas</h1>
           </div>
           <div className="flex items-center space-x-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={onOpenQuickImportDialog}>
+                  <ClipboardPaste className="h-5 w-5" /> {/* Icon for Quick Import */}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Quick Import (Paste Text)</p></TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={() => importInputRef.current?.click()}>
