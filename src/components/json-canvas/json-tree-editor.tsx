@@ -14,7 +14,7 @@ import { UnfoldVertical, FoldVertical, Search, Info } from 'lucide-react';
 interface JsonTreeEditorProps {
   jsonData: JsonValue;
   onJsonChange: (newJson: JsonValue) => void;
-  title?: string; // Optional title for the section/tab
+  title?: string; 
   getApiKey: () => string | null;
 }
 
@@ -23,18 +23,18 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredPath, setHoveredPath] = useState<JsonPath | null>(null);
   
-  const handleUpdate = (path: JsonPath, newValue: JsonValue) => {
-    const newJson = JSON.parse(JSON.stringify(jsonData)); // Deep clone
+  const handleUpdate = useCallback((path: JsonPath, newValue: JsonValue) => {
+    const newJson = JSON.parse(JSON.stringify(jsonData)); 
     let current = newJson;
     for (let i = 0; i < path.length - 1; i++) {
       current = current[path[i]];
     }
     current[path[path.length - 1]] = newValue;
     onJsonChange(newJson);
-  };
+  }, [jsonData, onJsonChange]);
 
-  const handleDelete = (path: JsonPath, keyOrIndex?: string | number) => {
-    const newJson = JSON.parse(JSON.stringify(jsonData)); // Deep clone
+  const handleDelete = useCallback((path: JsonPath, keyOrIndex?: string | number) => {
+    const newJson = JSON.parse(JSON.stringify(jsonData)); 
     let current = newJson;
     let parent = null;
     let lastSegment = null;
@@ -60,7 +60,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
         if (Array.isArray(parent)) {
             parent.splice(Number(lastSegment), 1);
         } else {
-            delete parent[lastSegment as string]; // Ensure lastSegment is treated as string for object keys
+            delete parent[lastSegment as string]; 
         }
     }
 
@@ -69,9 +69,9 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     }
 
     onJsonChange(newJson);
-  };
+  }, [jsonData, onJsonChange]);
   
-  const handleAddProperty = (path: JsonPath, key: string, value: JsonValue) => {
+  const handleAddProperty = useCallback((path: JsonPath, key: string, value: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
     let current = newJson;
     for (let i = 0; i < path.length; i++) {
@@ -81,9 +81,9 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
         current[key] = value;
         onJsonChange(newJson);
     }
-  };
+  }, [jsonData, onJsonChange]);
 
-  const handleAddItem = (path: JsonPath, value: JsonValue) => {
+  const handleAddItem = useCallback((path: JsonPath, value: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
     let current = newJson;
     for (let i = 0; i < path.length; i++) {
@@ -93,9 +93,9 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
         current.push(value);
         onJsonChange(newJson);
     }
-  };
+  }, [jsonData, onJsonChange]);
 
-  const handleRenameKey = (path: JsonPath, oldKey: string, newKey: string) => {
+  const handleRenameKey = useCallback((path: JsonPath, oldKey: string, newKey: string) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
     let current = newJson;
     for (let i = 0; i < path.length; i++) {
@@ -111,7 +111,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
         current[newKey] = value;
         onJsonChange(newJson);
     }
-  };
+  }, [jsonData, onJsonChange]);
 
   const handleExpandAll = useCallback(() => {
     setExpansionTrigger({ type: 'expand', timestamp: Date.now() });
@@ -131,9 +131,6 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
 
   const formatPathForBreadcrumbs = (path: JsonPath | null): string => {
     if (!path || path.length === 0) return 'Hover over a node to see its path';
-    // If the first segment is the title itself, and it's an object/array root, 
-    // we might not need to show it if it's redundant with the CardTitle.
-    // For now, keep it simple.
     const rootSegment = title || 'root';
     const displayPath = path.map(segment => 
         typeof segment === 'number' ? `[${segment}]` : `.${segment}`
@@ -211,7 +208,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
           <JsonNode
               path={[]} 
               value={jsonData} 
-              nodeKey={title} // This might be confusing if jsonData is an array at root of section
+              nodeKey={title} 
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               onAddProperty={handleAddProperty}
@@ -228,3 +225,4 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     </TooltipProvider>
   );
 }
+

@@ -65,7 +65,7 @@ const getHighlightedText = (text: string, highlight: string): React.ReactNode =>
 };
 
 
-export function JsonNode({ 
+const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({ 
   path, 
   value, 
   nodeKey, 
@@ -79,7 +79,7 @@ export function JsonNode({
   expansionTrigger,
   searchTerm,
   onSetHoveredPath
-}: EditableJsonNodeProps) {
+}) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [editValue, setEditValue] = useState<string>(JSON.stringify(value));
@@ -93,27 +93,24 @@ export function JsonNode({
 
   const { toast } = useToast();
 
-  // Memoize isExpanded to prevent unnecessary re-renders unless specific props change
   const isExpanded = useMemo(() => {
     if (expansionTrigger && (typeof value === 'object' && value !== null)) {
       return expansionTrigger.type === 'expand';
     }
     return isExpandedState;
   }, [expansionTrigger, value, isExpandedState]);
-
-  // Effect to handle internal expansion state changes
+  
   useEffect(() => {
     if (expansionTrigger && (typeof value === 'object' && value !== null)) {
       setIsExpandedState(expansionTrigger.type === 'expand');
     }
   }, [expansionTrigger, value]);
 
-  // Toggle internal expansion state
-  const toggleExpansion = () => {
+  const toggleExpansion = useCallback(() => {
     if (typeof value === 'object' && value !== null) {
       setIsExpandedState(prev => !prev);
     }
-  };
+  }, [value]);
 
 
   useEffect(() => {
@@ -122,7 +119,7 @@ export function JsonNode({
   }, [value, nodeKey]);
 
 
-  const handleValueUpdate = () => {
+  const handleValueUpdate = useCallback(() => {
     try {
       let parsedValue: JsonValue;
       if (typeof value === 'string') {
@@ -141,9 +138,9 @@ export function JsonNode({
     } catch (error) {
       toast({ title: 'Error', description: 'Invalid JSON value. For strings, edit directly. For other types, ensure valid JSON format.', variant: 'destructive' });
     }
-  };
+  }, [editValue, onUpdate, path, value, toast]);
 
-  const handleKeyUpdate = () => {
+  const handleKeyUpdate = useCallback(() => {
     if (onRenameKey && nodeKey && newKeyName.trim() && newKeyName.trim() !== nodeKey) {
       onRenameKey(path.slice(0, -1), nodeKey, newKeyName.trim());
       setIsEditingKey(false);
@@ -153,14 +150,14 @@ export function JsonNode({
       if (newKeyName.trim() === nodeKey) return; 
       toast({ title: 'Error', description: 'Key name cannot be empty or unchanged.', variant: 'destructive' });
     }
-  };
+  }, [newKeyName, nodeKey, onRenameKey, path, toast]);
 
-  const handleBooleanChange = (checked: boolean) => {
+  const handleBooleanChange = useCallback((checked: boolean) => {
     onUpdate(path, checked);
     toast({ title: 'Value Updated' });
-  };
+  }, [onUpdate, path, toast]);
 
-  const handleSummarize = async () => {
+  const handleSummarize = useCallback(async () => {
     const apiKey = getApiKey();
     if (!apiKey) {
       toast({ title: 'API Key Missing', description: 'Please set your Google AI API key in settings.', variant: 'destructive' });
@@ -178,13 +175,13 @@ export function JsonNode({
       console.error("Summarization error:", error);
       toast({ title: 'Summarization Failed', description: error.message || 'An unexpected error occurred.', variant: 'destructive' });
     }
-  };
+  }, [getApiKey, onUpdate, path, value, toast]);
   
-  const handleMarkdownModalSave = () => {
+  const handleMarkdownModalSave = useCallback(() => {
     onUpdate(path, markdownModalContent);
     setIsMarkdownModalOpen(false);
     toast({ title: 'Markdown Content Updated' });
-  };
+  }, [markdownModalContent, onUpdate, path, toast]);
 
   const handleCopyToClipboard = useCallback(async () => {
     const valueToCopy = (typeof value === 'object' && value !== null) || typeof value === 'boolean'
@@ -199,17 +196,17 @@ export function JsonNode({
     }
   }, [value, toast]);
 
-  const handleMouseEnter = () => {
+  const handleMouseEnter = useCallback(() => {
     if (onSetHoveredPath) {
       onSetHoveredPath(path);
     }
-  };
+  }, [onSetHoveredPath, path]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     if (onSetHoveredPath) {
       onSetHoveredPath(null);
     }
-  };
+  }, [onSetHoveredPath]);
 
 
   const renderValue = () => {
@@ -239,15 +236,13 @@ export function JsonNode({
     } else if (typeof value === 'boolean') {
       valueStringForSearch = String(value);
       displayValue = <Checkbox checked={value} onCheckedChange={(checkedState) => handleBooleanChange(Boolean(checkedState))} className="ml-1" />;
-      // Checkbox itself doesn't need text highlighting, but its string representation might match
     } else if (value === null) {
       valueStringForSearch = "null";
       displayValue = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{searchTerm ? getHighlightedText("null", searchTerm) : "null"}</span>;
     } else {
-       return null; // Objects and arrays are handled by recursive rendering
+       return null; 
     }
     
-    // Add a general data attribute for easier selection if needed for search highlighting logic at parent level
     return <span data-searchable-value={valueStringForSearch}>{displayValue}</span>;
   };
 
@@ -259,7 +254,7 @@ export function JsonNode({
   const [isAddingProperty, setIsAddingProperty] = useState(false);
 
 
-  const handleAddPropertyConfirm = () => {
+  const handleAddPropertyConfirm = useCallback(() => {
     if (!onAddProperty || !newPropertyKey.trim()) {
         toast({ title: 'Error', description: 'Property key cannot be empty.', variant: 'destructive' });
         return;
@@ -283,9 +278,9 @@ export function JsonNode({
     } catch (e: any) {
         toast({ title: 'Error adding property', description: e.message, variant: 'destructive' });
     }
-  };
+  }, [newPropertyKey, newPropertyValue, newPropertyType, onAddProperty, path, toast]);
   
-  const handleAddItemConfirm = () => {
+  const handleAddItemConfirm = useCallback(() => {
     if (!onAddItem) return;
     let val: JsonValue;
      try {
@@ -305,32 +300,30 @@ export function JsonNode({
     } catch (e: any) {
         toast({ title: 'Error adding item', description: e.message, variant: 'destructive' });
     }
-  };
+  }, [newPropertyValue, newPropertyType, onAddItem, path, toast]);
 
-  let buttonRenderIndex = 0;
+  // For staggered button animation
+  const buttonRenderIndex = React.useRef(0);
+  useEffect(() => {
+    buttonRenderIndex.current = 0; // Reset for each render pass of the node header
+  });
+
   const delayClasses = [
-    "", 
-    "delay-75",
-    "delay-100",
-    "delay-150",
-    "delay-200",
-    "delay-[250ms]",
-    "delay-300",
-    "delay-[350ms]",
-    "delay-[400ms]",
-    "delay-[450ms]",
+    "", "delay-75", "delay-100", "delay-150", "delay-200", 
+    "delay-[250ms]", "delay-300", "delay-[350ms]", "delay-[400ms]", "delay-[450ms]",
   ];
 
-  const getButtonAnimationClasses = () => {
-    const delayClass = delayClasses[buttonRenderIndex] || delayClasses[delayClasses.length -1];
-    buttonRenderIndex++;
+  const getButtonAnimationClasses = useCallback(() => {
+    const delayClass = delayClasses[buttonRenderIndex.current] || delayClasses[delayClasses.length -1];
+    buttonRenderIndex.current++;
     return `
       opacity-0 transform translate-x-2 
       group-hover/node-item-header:opacity-100 group-hover/node-item-header:translate-x-0 
       group-focus-within/node-item-header:opacity-100 group-focus-within/node-item-header:translate-x-0 
       transition-all ease-out duration-200 ${delayClass}
     `;
-  };
+  }, [delayClasses]); // delayClasses is constant, so this useCallback is stable
+
 
   const isPrimitiveOrNull = typeof value !== 'object' || value === null;
   const displayKey = nodeKey !== undefined ? (searchTerm ? getHighlightedText(nodeKey, searchTerm) : nodeKey) : '';
@@ -418,7 +411,7 @@ export function JsonNode({
                   </Tooltip>
                 </div>
             )}
-            {isPrimitiveOrNull && ( // Only show copy for primitives and null, arrays/objects can be large
+            {(isPrimitiveOrNull || Array.isArray(value) || typeof value === 'object') && value !== null && ( 
               <div className={getButtonAnimationClasses()}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -527,7 +520,7 @@ export function JsonNode({
             {Array.isArray(value)
               ? value.map((item, index) => (
                   <JsonNode
-                    key={`${path.join('-')}-item-${index}-${typeof item === 'object' ? 'obj' : String(item).slice(0,5)}`} // More robust key
+                    key={`${path.join('-')}-item-${index}-${typeof item}-${String(item).slice(0,10)}`}
                     path={[...path, index]}
                     value={item}
                     onUpdate={onUpdate}
@@ -544,7 +537,7 @@ export function JsonNode({
                 ))
               : Object.entries(value).map(([key, val]) => (
                   <JsonNode
-                    key={`${path.join('-')}-prop-${key}-${typeof val === 'object' ? 'obj' : String(val).slice(0,5)}`} // More robust key
+                    key={`${path.join('-')}-prop-${key}-${typeof val}-${String(val).slice(0,10)}`}
                     path={[...path, key]}
                     nodeKey={key}
                     value={val}
@@ -613,4 +606,21 @@ export function JsonNode({
       </div>
     </TooltipProvider>
   );
-}
+};
+
+export const JsonNode = React.memo(JsonNodeComponent);
+
+// Helper to compare props for React.memo, can be customized if needed
+// For now, default shallow comparison by React.memo should be okay,
+// especially with useCallback for function props.
+// If performance issues persist with complex 'value' props, a custom areEqual could be implemented.
+// const areEqual = (prevProps: EditableJsonNodeProps, nextProps: EditableJsonNodeProps) => {
+//   return prevProps.value === nextProps.value &&
+//          prevProps.nodeKey === nextProps.nodeKey &&
+//          prevProps.depth === nextProps.depth &&
+//          prevProps.expansionTrigger === nextProps.expansionTrigger &&
+//          prevProps.searchTerm === nextProps.searchTerm &&
+//          prevProps.path.join(',') === nextProps.path.join(',');
+//   // Note: Function props (onUpdate, etc.) should be stable due to useCallback in parent
+// };
+// export const JsonNode = React.memo(JsonNodeComponent, areEqual);
