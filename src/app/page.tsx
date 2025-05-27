@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
+import { ClipboardPaste } from 'lucide-react'; // Added import
 
 const initialJson: JsonValue = {
   "projectInfo": {
