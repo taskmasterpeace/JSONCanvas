@@ -127,7 +127,9 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
   };
 
   const handleCopyToClipboard = useCallback(async () => {
-    const valueToCopy = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+    const valueToCopy = (typeof value === 'object' && value !== null) || typeof value === 'boolean'
+        ? JSON.stringify(value, null, 2) 
+        : String(value);
     try {
       await navigator.clipboard.writeText(valueToCopy);
       toast({ title: 'Copied to clipboard!', description: `Value: "${valueToCopy.substring(0,70)}${valueToCopy.length > 70 ? '...' : ''}"` });
@@ -218,6 +220,33 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
     }
   };
 
+  let buttonRenderIndex = 0;
+  const delayClasses = [
+    "", // 0ms
+    "delay-75",
+    "delay-100",
+    "delay-150",
+    "delay-200",
+    "delay-[250ms]",
+    "delay-300",
+    "delay-[350ms]",
+    "delay-[400ms]",
+    "delay-[450ms]",
+  ];
+
+  const getButtonAnimationClasses = () => {
+    const delayClass = delayClasses[buttonRenderIndex] || delayClasses[delayClasses.length -1];
+    buttonRenderIndex++;
+    // When hovered or focused-within, button becomes visible (opacity-100) and slides to translateX-0
+    // Initial state: opacity-0, translateX-2 (slightly to the right)
+    return `
+      opacity-0 transform translate-x-2 
+      group-hover/node-item-header:opacity-100 group-hover/node-item-header:translate-x-0 
+      group-focus-within/node-item-header:opacity-100 group-focus-within/node-item-header:translate-x-0 
+      transition-all ease-out duration-200 ${delayClass}
+    `;
+  };
+
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -254,42 +283,52 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
 
           {typeof value !== 'object' ? renderValue() : value === null ? renderValue() : null}
 
-
-          <div className="flex items-center space-x-1 ml-auto opacity-0 group-hover/node-item:opacity-100 group-focus-within/node-item:opacity-100 transition-opacity">
+          {/* Action Buttons Container: Fades in quickly. Individual buttons inside handle their own transform + delay. */}
+          <div className="flex items-center space-x-1 ml-auto opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100">
             {isEditing ? (
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1"><CheckIcon size={16} /></Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Save Value</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)} className="h-6 w-6 p-1"><XIcon size={16} /></Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Cancel Edit</p></TooltipContent>
-                </Tooltip>
+                <div className={getButtonAnimationClasses()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1"><CheckIcon size={16} /></Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Save Value</p></TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className={getButtonAnimationClasses()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)} className="h-6 w-6 p-1"><XIcon size={16} /></Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Cancel Edit</p></TooltipContent>
+                  </Tooltip>
+                </div>
               </>
             ) : (
               typeof value !== 'object' && value !== null && typeof value !== 'boolean' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)} className="h-6 w-6 p-1"><Edit3 size={16} /></Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Edit Value</p></TooltipContent>
-                </Tooltip>
+                <div className={getButtonAnimationClasses()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)} className="h-6 w-6 p-1"><Edit3 size={16} /></Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Edit Value</p></TooltipContent>
+                  </Tooltip>
+                </div>
               )
             )}
              {nodeKey !== undefined && onRenameKey && (
+                <div className={getButtonAnimationClasses()}>
                  <Tooltip>
                     <TooltipTrigger asChild>
                         <Button variant="ghost" size="icon" onClick={() => setIsEditingKey(true)} className="h-6 w-6 p-1"><ALargeSmall size={16}/></Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Rename Key</p></TooltipContent>
-                </Tooltip>
+                  </Tooltip>
+                </div>
             )}
-             {(typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) && (
+            {/* Copy button applies to strings, numbers, booleans, and null. For objects/arrays, it copies their stringified version. */}
+            {(typeof value !== 'object' || value === null || Array.isArray(value)) && (
+              <div className={getButtonAnimationClasses()}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" onClick={handleCopyToClipboard} className="h-6 w-6 p-1">
@@ -298,45 +337,56 @@ export function JsonNode({ path, value, nodeKey, onUpdate, onDelete, onAddProper
                   </TooltipTrigger>
                   <TooltipContent><p>Copy Value</p></TooltipContent>
                 </Tooltip>
+              </div>
             )}
             {typeof value === 'string' && (
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1">
-                      <MessageSquare size={16} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>{showMarkdownPreview ? "Show Raw Text" : "Preview Markdown (for long text)"}</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={() => { setMarkdownModalContent(value); setIsMarkdownModalOpen(true);}} className="h-6 w-6 p-1">
-                      <Maximize2 size={16} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Expand Editor (Markdown)</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={handleSummarize} className="h-6 w-6 p-1"><Wand2 size={16} /></Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Summarize (AI)</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={() => setIsEnhanceDialogOpen(true)} className="h-6 w-6 p-1"><Sparkles size={16} /></Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Enhance (AI)</p></TooltipContent>
-                </Tooltip>
+                <div className={getButtonAnimationClasses()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1">
+                        <MessageSquare size={16} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>{showMarkdownPreview ? "Show Raw Text" : "Preview Markdown (for long text)"}</p></TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className={getButtonAnimationClasses()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => { setMarkdownModalContent(value); setIsMarkdownModalOpen(true);}} className="h-6 w-6 p-1">
+                        <Maximize2 size={16} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Expand Editor (Markdown)</p></TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className={getButtonAnimationClasses()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={handleSummarize} className="h-6 w-6 p-1"><Wand2 size={16} /></Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Summarize (AI)</p></TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className={getButtonAnimationClasses()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => setIsEnhanceDialogOpen(true)} className="h-6 w-6 p-1"><Sparkles size={16} /></Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Enhance (AI)</p></TooltipContent>
+                  </Tooltip>
+                </div>
               </>
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={() => onDelete(path, nodeKey)} className="h-6 w-6 p-1 text-destructive hover:text-destructive-foreground hover:bg-destructive"><Trash2 size={16} /></Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Delete {nodeKey !==undefined ? 'Property' : 'Item'}</p></TooltipContent>
-            </Tooltip>
+            <div className={getButtonAnimationClasses()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={() => onDelete(path, nodeKey)} className="h-6 w-6 p-1 text-destructive hover:text-destructive-foreground hover:bg-destructive"><Trash2 size={16} /></Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Delete {nodeKey !==undefined ? 'Property' : 'Item'}</p></TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </div>
         
