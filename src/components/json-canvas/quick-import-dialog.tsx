@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type { JsonValue } from './types';
 import { convertTextToJson, type ConvertTextToJsonInput } from '@/ai/flows/convert-text-to-json-flow';
@@ -26,13 +28,14 @@ interface QuickImportDialogProps {
 
 export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: QuickImportDialogProps) {
   const [rawText, setRawText] = useState('');
+  const [aiInstructions, setAiInstructions] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const handleImportWithAI = async () => {
     const apiKey = getApiKey();
     if (!apiKey) {
-      toast({ title: 'API Key Missing', description: 'Please set your OpenAI API key in settings for AI-powered import.', variant: 'destructive' });
+      toast({ title: 'API Key Missing', description: 'Please set your Google AI API key in settings for AI-powered import.', variant: 'destructive' });
       return;
     }
     if (!rawText.trim()) {
@@ -42,7 +45,10 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
 
     setIsLoading(true);
     try {
-      const input: ConvertTextToJsonInput = { rawText };
+      const input: ConvertTextToJsonInput = { 
+        rawText,
+        instructions: aiInstructions.trim() || undefined,
+      };
       const result = await convertTextToJson(input);
       
       try {
@@ -55,6 +61,7 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
         toast({ title: 'Import Successful', description });
         onOpenChange(false);
         setRawText('');
+        setAiInstructions('');
       } catch (parseError) {
         console.error('Error parsing JSON from AI:', parseError, result.generatedJson);
         toast({ title: 'Import Error', description: 'AI converted text, but the result was not valid JSON. Please try again or check the AI output.', variant: 'destructive' });
@@ -69,27 +76,43 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isLoading) onOpenChange(isOpen); }}>
-      <DialogContent className="sm:max-w-xl max-h-[80vh] flex flex-col bg-card">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col bg-card">
         <DialogHeader>
           <DialogTitle>Quick Import with AI</DialogTitle>
           <DialogDescription>
             Paste any text (e.g., CSV, lists, messy notes, partial JSON) and AI will try to convert it into structured JSON.
+            You can provide optional instructions to guide the AI.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow overflow-y-auto py-4">
-          <Textarea
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            className="min-h-[300px] font-mono text-sm resize-none h-full bg-input"
-            placeholder="Paste your text here..."
-            disabled={isLoading}
-          />
+        <div className="flex-grow flex flex-col gap-4 overflow-y-auto py-4">
+          <div>
+            <Label htmlFor="rawTextImport" className="mb-1 block">Text to Import</Label>
+            <Textarea
+              id="rawTextImport"
+              value={rawText}
+              onChange={(e) => setRawText(e.target.value)}
+              className="min-h-[200px] font-mono text-sm resize-none h-full bg-input"
+              placeholder="Paste your text here..."
+              disabled={isLoading}
+            />
+          </div>
+          <div>
+            <Label htmlFor="aiInstructionsImport" className="mb-1 block">Optional: Instructions for AI</Label>
+            <Textarea
+              id="aiInstructionsImport"
+              value={aiInstructions}
+              onChange={(e) => setAiInstructions(e.target.value)}
+              className="min-h-[100px] text-sm resize-none h-full bg-input"
+              placeholder="e.g., Create an array of objects. Each object should have 'name' and 'email' keys."
+              disabled={isLoading}
+            />
+          </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline" disabled={isLoading}>Cancel</Button>
           </DialogClose>
-          <Button type="button" onClick={handleImportWithAI} disabled={isLoading}>
+          <Button type="button" onClick={handleImportWithAI} disabled={isLoading || !rawText.trim()}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
             Import with AI
           </Button>
@@ -98,3 +121,4 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
     </Dialog>
   );
 }
+

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow for converting arbitrary text input into structured JSON using AI.
@@ -12,6 +13,7 @@ import {z} from 'genkit';
 
 const ConvertTextToJsonInputSchema = z.object({
   rawText: z.string().describe('The raw text input to be converted into JSON. This can be a list, CSV, unstructured text, or partial JSON.'),
+  instructions: z.string().optional().describe('Optional instructions for the AI on how to structure the JSON, e.g., "Create an array of objects with keys: name, age."'),
 });
 export type ConvertTextToJsonInput = z.infer<typeof ConvertTextToJsonInputSchema>;
 
@@ -34,11 +36,17 @@ const convertTextToJsonPrompt = ai.definePrompt({
 Analyze the input text:
 {{{rawText}}}
 
-Consider the following:
+{{#if instructions}}
+Please follow these specific instructions for structuring the JSON:
+{{{instructions}}}
+{{else}}
+Consider the following general guidelines:
 - If the text appears to be a list of items, try to create a JSON array.
 - If the text resembles key-value pairs or a table, try to create a JSON object. For tabular data, use column headers as keys if identifiable, otherwise use generic keys like "column1", "column2".
 - If the text is unstructured, try to extract meaningful entities and relationships to form a JSON structure.
 - If the text is already partially JSON or malformed JSON, try to correct it and make it valid.
+{{/if}}
+
 - Ensure all strings in the generated JSON are properly escaped.
 - Aim for a clean and human-readable JSON structure.
 
@@ -87,3 +95,4 @@ const convertTextToJsonFlow = ai.defineFlow(
     return output;
   }
 );
+
