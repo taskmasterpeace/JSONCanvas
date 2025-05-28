@@ -4,7 +4,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import type { JsonValue, JsonPath, ExpansionTrigger, JsonObject, JsonArray } from './types';
 import { JsonNode } from './json-node';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -28,15 +28,16 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   const { toast } = useToast();
 
   const getCurrentCardData = useCallback((): JsonValue => {
-    let current = jsonData;
-    if (!cardViewPath.length) return current;
+    let currentData = jsonData;
+    if (!cardViewPath.length) return currentData;
     try {
         for (const segment of cardViewPath) {
-            if (typeof current !== 'object' || current === null) return undefined;
-            current = (current as JsonObject | JsonArray)[segment as any];
+            if (typeof currentData !== 'object' || currentData === null) return undefined;
+            currentData = (currentData as JsonObject | JsonArray)[segment as any];
         }
-        return current;
+        return currentData;
     } catch (e) {
+        console.error("Error getting card data for path:", cardViewPath, e);
         return undefined;
     }
   }, [jsonData, cardViewPath]);
@@ -44,18 +45,18 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   const currentCardData = getCurrentCardData();
 
   useEffect(() => {
-    // When jsonData changes (e.g. new file import or tab switch), reset cardViewPath and expansion trigger.
     if (viewMode === 'cards') {
       setCardViewPath([]);
     }
-    setExpansionTrigger(null); // Reset global expand/collapse on data change
+    setExpansionTrigger(null); 
+    setSearchTerm(''); // Clear search on data/view mode change
   }, [jsonData, viewMode]);
 
   const handleUpdate = useCallback((path: JsonPath, newValue: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
     let current = newJson;
-    // If path is for an item within the card view's current scope
-    const fullPath = [...cardViewPath, ...path];
+    
+    const fullPath = viewMode === 'cards' ? [...cardViewPath, ...path] : path;
 
     if (fullPath.length === 0) {
       onJsonChange(newValue);
@@ -64,94 +65,144 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
 
     let target = newJson;
     for (let i = 0; i < fullPath.length - 1; i++) {
+      if (typeof target[fullPath[i]] === 'undefined') {
+         console.error("Invalid path for update:", fullPath, "at segment", fullPath[i]);
+         toast({title: "Update Error", description: "Cannot update data at invalid path.", variant: "destructive"});
+         return;
+      }
       target = target[fullPath[i]];
     }
     target[fullPath[fullPath.length - 1]] = newValue;
     onJsonChange(newJson);
-  }, [jsonData, onJsonChange, cardViewPath]);
+  }, [jsonData, onJsonChange, cardViewPath, viewMode, toast]);
 
   const handleDelete = useCallback((path: JsonPath, keyOrIndex?: string | number) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
-    const fullPath = [...cardViewPath, ...path];
-
-    if (fullPath.length === 0) {
-      if (typeof jsonData === 'object' && jsonData !== null) {
-        onJsonChange(Array.isArray(jsonData) ? [] : {});
-      } else {
-        onJsonChange(null);
-      }
-      return;
+    const fullPath = viewMode === 'cards' ? [...cardViewPath, ...path] : path;
+    
+    if (fullPath.length === 0) { // Deleting the root of current view
+        if (viewMode === 'cards' && cardViewPath.length > 0) {
+            // Deleting the item that cardViewPath points to
+            let parent = newJson;
+            for (let i = 0; i < cardViewPath.length - 1; i++) {
+                parent = parent[cardViewPath[i]];
+            }
+            const lastSegment = cardViewPath[cardViewPath.length - 1];
+            if (Array.isArray(parent) && typeof lastSegment === 'number') {
+                parent.splice(lastSegment, 1);
+            } else if (typeof parent === 'object' && parent !== null && typeof lastSegment === 'string') {
+                delete parent[lastSegment];
+            }
+            setCardViewPath(prev => prev.slice(0, -1)); // Go back one level
+        } else { // Deleting the root of the whole section
+            onJsonChange(Array.isArray(jsonData) ? [] : {});
+        }
+        onJsonChange(newJson);
+        return;
     }
-
-    let parent = null;
-    let current = newJson;
+    
+    let parent = newJson;
     for (let i = 0; i < fullPath.length - 1; i++) {
-      parent = current;
-      current = current[fullPath[i]];
+      if (typeof parent[fullPath[i]] === 'undefined') {
+         console.error("Invalid path for delete:", fullPath, "at segment", fullPath[i]);
+         toast({title: "Delete Error", description: "Cannot delete data at invalid path.", variant: "destructive"});
+         return;
+      }
+      parent = parent[fullPath[i]];
     }
 
     const targetKeyOrIndex = fullPath[fullPath.length - 1];
 
-    if (Array.isArray(current)) {
-      current.splice(Number(targetKeyOrIndex), 1);
-    } else if (typeof current === 'object' && current !== null) {
-      delete current[targetKeyOrIndex as string];
-    } else if (parent) { // Deleting the root of the current card view path
-        let rootSegment = cardViewPath.length > 0 ? cardViewPath[cardViewPath.length-1] : (title || (Array.isArray(jsonData) ? 0 : Object.keys(jsonData)[0]));
-        let parentOfRoot = newJson;
-        for (let i = 0; i < cardViewPath.length -1; i++){
-            parentOfRoot = parentOfRoot[cardViewPath[i]];
-        }
-        if (Array.isArray(parentOfRoot) && typeof rootSegment === 'number') {
-            parentOfRoot.splice(rootSegment,1)
-        } else if(typeof parentOfRoot === 'object' && parentOfRoot !== null && typeof rootSegment === 'string') {
-            delete parentOfRoot[rootSegment];
-        }
+    if (Array.isArray(parent)) {
+      parent.splice(Number(targetKeyOrIndex), 1);
+    } else if (typeof parent === 'object' && parent !== null) {
+      delete parent[targetKeyOrIndex as string];
     }
     onJsonChange(newJson);
-  }, [jsonData, onJsonChange, cardViewPath, title]);
+  }, [jsonData, onJsonChange, cardViewPath, viewMode, toast]);
 
   const handleAddProperty = useCallback((path: JsonPath, key: string, value: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
-    const fullPath = [...cardViewPath, ...path];
+    const fullPath = viewMode === 'cards' ? [...cardViewPath, ...path] : path;
     let current = newJson;
 
     for (let i = 0; i < fullPath.length; i++) {
+       if (typeof current[fullPath[i]] === 'undefined' && i < fullPath.length) { // path might be empty [] for root
+            if (fullPath.length === 0 && typeof current === 'object' && !Array.isArray(current)) {
+                // Adding to root object, current is already the target
+            } else {
+                console.error("Invalid path for add property:", fullPath, "at segment", fullPath[i]);
+                toast({title: "Add Error", description: "Cannot add property at invalid path.", variant: "destructive"});
+                return;
+            }
+        }
         current = current[fullPath[i]];
     }
+
     if (typeof current === 'object' && !Array.isArray(current) && current !== null) {
         current[key] = value;
         onJsonChange(newJson);
-    } else {
+    } else if (fullPath.length === 0 && typeof newJson === 'object' && !Array.isArray(newJson) && newJson !== null) {
+        // Adding to the root object itself if path is empty
+        newJson[key] = value;
+        onJsonChange(newJson);
+    }
+     else {
       toast({ title: "Cannot Add Property", description: "Can only add properties to objects.", variant: "destructive"});
     }
-  }, [jsonData, onJsonChange, cardViewPath, toast]);
+  }, [jsonData, onJsonChange, cardViewPath, viewMode, toast]);
 
   const handleAddItem = useCallback((path: JsonPath, value: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
-    const fullPath = [...cardViewPath, ...path];
+    const fullPath = viewMode === 'cards' ? [...cardViewPath, ...path] : path;
     let current = newJson;
 
     for (let i = 0; i < fullPath.length; i++) {
+         if (typeof current[fullPath[i]] === 'undefined' && i < fullPath.length) {
+             if (fullPath.length === 0 && Array.isArray(current)) {
+                // Adding to root array, current is already the target
+            } else {
+                console.error("Invalid path for add item:", fullPath, "at segment", fullPath[i]);
+                toast({title: "Add Error", description: "Cannot add item at invalid path.", variant: "destructive"});
+                return;
+            }
+        }
         current = current[fullPath[i]];
     }
     if (Array.isArray(current)) {
         current.push(value);
         onJsonChange(newJson);
-    } else {
+    } else if (fullPath.length === 0 && Array.isArray(newJson)) {
+        newJson.push(value);
+        onJsonChange(newJson);
+    }
+    else {
       toast({ title: "Cannot Add Item", description: "Can only add items to arrays.", variant: "destructive"});
     }
-  }, [jsonData, onJsonChange, cardViewPath, toast]);
+  }, [jsonData, onJsonChange, cardViewPath, viewMode, toast]);
 
   const handleRenameKey = useCallback((path: JsonPath, oldKey: string, newKey: string) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
-    const fullPath = [...cardViewPath, ...path];
+    const fullPath = viewMode === 'cards' ? [...cardViewPath, ...path] : path;
     let current = newJson;
 
     for (let i = 0; i < fullPath.length; i++) {
+       if (typeof current[fullPath[i]] === 'undefined' && i < fullPath.length) {
+             if (fullPath.length === 0 && typeof current === 'object' && !Array.isArray(current)) {
+                // Operating on root object
+            } else {
+                console.error("Invalid path for rename key:", fullPath, "at segment", fullPath[i]);
+                toast({title: "Rename Error", description: "Cannot rename key at invalid path.", variant: "destructive"});
+                return;
+            }
+        }
         current = current[fullPath[i]];
     }
     if (typeof current === 'object' && !Array.isArray(current) && current !== null && oldKey in current) {
+        if (newKey.trim() === "") {
+            toast({title: "Rename Error", description: "New key name cannot be empty.", variant: "destructive"});
+            return;
+        }
         if (newKey in current && oldKey !== newKey) {
             toast({title: "Rename Error", description: `New key "${newKey}" already exists in object.`, variant: "destructive"});
             return;
@@ -162,8 +213,22 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
         delete current[oldKey];
         current[newKey] = value;
         onJsonChange(newJson);
+    } else if (fullPath.length === 0 && typeof newJson === 'object' && !Array.isArray(newJson) && newJson !== null && oldKey in newJson) {
+         if (newKey.trim() === "") {
+            toast({title: "Rename Error", description: "New key name cannot be empty.", variant: "destructive"});
+            return;
+        }
+        if (newKey in newJson && oldKey !== newKey) {
+            toast({title: "Rename Error", description: `New key "${newKey}" already exists in object.`, variant: "destructive"});
+            return;
+        }
+        if (oldKey === newKey) return;
+        const value = newJson[oldKey];
+        delete newJson[oldKey];
+        newJson[newKey] = value;
+        onJsonChange(newJson);
     }
-  }, [jsonData, onJsonChange, cardViewPath, toast]);
+  }, [jsonData, onJsonChange, cardViewPath, viewMode, toast]);
 
 
   const handleExpandAll = useCallback(() => {
@@ -177,7 +242,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
     if(event.target.value && viewMode === 'tree') {
-        handleExpandAll();
+        handleExpandAll(); // Expand tree view on search to show matches
     }
   };
 
@@ -187,49 +252,51 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
 
   const handleExploreCard = useCallback((keyOrIndex: string | number) => {
     setCardViewPath(prev => [...prev, keyOrIndex]);
-    setSearchTerm(''); // Clear search when exploring
+    setSearchTerm(''); 
   }, []);
 
   const handleCardViewBack = useCallback(() => {
     setCardViewPath(prev => prev.slice(0, -1));
-    setSearchTerm(''); // Clear search when going back
+    setSearchTerm(''); 
   }, []);
 
 
-  const formatPathForBreadcrumbs = (currentPath: JsonPath, isCardContext: boolean): string => {
-    const rootSegment = title || (Array.isArray(jsonData) && cardViewPath.length === 0 ? 'Section Root' : 'Section Root');
+  const formatPathForBreadcrumbs = (currentPath: JsonPath | null, isCardContext: boolean): string => {
+    const rootSegment = title || 'Section Root';
 
     if (!currentPath || currentPath.length === 0) {
-      if(isCardContext) return `${rootSegment} (Card View Root)`;
-      return `Hover over a tree node or view card path`;
+      if(isCardContext && cardViewPath.length === 0) return `${rootSegment} (Card View Root)`;
+      if(isCardContext && cardViewPath.length > 0) return `${rootSegment}${cardViewPath.map(s => typeof s === 'number' ? `[${s}]` : `.${s}`).join('')} (Card View)`;
+      return `Hover over a tree node or explore cards`;
     }
-
+    
     const displayPath = currentPath.map(segment =>
         typeof segment === 'number' ? `[${segment}]` : `.${segment}`
     ).join('');
 
     let base = rootSegment;
      if (displayPath) {
-        if (displayPath.startsWith('[')) {
-            base += displayPath;
-        } else if (displayPath.startsWith('.')) {
+        if (displayPath.startsWith('[') || displayPath.startsWith('.')) {
             base += displayPath;
         } else {
              base += `.${displayPath}`;
         }
     }
-
-    return isCardContext ? `${base} (Card View)` : base;
+    return base;
   };
-
+  
   const isRootObject = typeof jsonData === 'object' && !Array.isArray(jsonData) && jsonData !== null;
   const isRootArray = Array.isArray(jsonData);
-  const canHaveChildren = typeof currentCardData === 'object' && currentCardData !== null; // For expand/collapse in card view context
+  const canHaveChildren = typeof currentCardData === 'object' && currentCardData !== null;
 
-  const cardViewDisplayPath = cardViewPath.length > 0 ? cardViewPath : (title ? [] : []);
-  const cardViewHeaderText = cardViewPath.length > 0
-    ? `Viewing: ${formatPathForBreadcrumbs(cardViewPath, true)}`
-    : (title ? `${title} (Card View)`: `Section Root (Card View)`);
+  let cardViewHeaderText = title || 'Section Root';
+  if (cardViewPath.length > 0) {
+      cardViewHeaderText = `Viewing: ${formatPathForBreadcrumbs(cardViewPath, true)}`;
+  } else if (title) {
+      cardViewHeaderText = `${title} (Card View)`;
+  } else {
+      cardViewHeaderText = 'Section Root (Card View)';
+  }
 
   return (
     <TooltipProvider>
@@ -272,7 +339,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
                   </Tooltip>
                 </>
               )}
-              {(isRootObject || isRootArray) && ( // Only show toggle if root can be viewed as cards
+              {(typeof jsonData === 'object' && jsonData !== null) && ( 
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" onClick={() => { setViewMode(viewMode === 'tree' ? 'cards' : 'tree'); setSearchTerm(''); setCardViewPath([]); }} className="h-7 w-7">
@@ -299,7 +366,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
               <span className="truncate">
                 {viewMode === 'tree'
                     ? formatPathForBreadcrumbs(hoveredPath, false)
-                    : (cardViewPath.length > 0 ? `Current card path: ${formatPathForBreadcrumbs(cardViewPath, true)}` : "Top level of cards")
+                    : (cardViewPath.length > 0 ? `Path: ${formatPathForBreadcrumbs(cardViewPath, true)}` : "Top level of cards")
                 }
               </span>
             </div>
@@ -319,19 +386,20 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
                 getApiKey={getApiKey}
                 expansionTrigger={expansionTrigger}
                 searchTerm={searchTerm}
-                onSetHoveredPath={handleSetHoveredPath}
-                isInCardViewTopLevel={false} // Explicitly false for tree view root
+                onSetHoveredPath={handleSetHoveredPath} 
+                isInCardViewTopLevel={false}
               />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
               {typeof currentCardData === 'object' && currentCardData !== null ? (
-                !Array.isArray(currentCardData) ? ( // It's an object
+                !Array.isArray(currentCardData) ? ( 
                   Object.entries(currentCardData).length > 0 ? (
                     Object.entries(currentCardData).filter(([key, value]) => {
                         if (!searchTerm) return true;
-                        return key.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                               (typeof value === 'string' && value.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                               (typeof value === 'number' && String(value).toLowerCase().includes(searchTerm.toLowerCase()));
+                        const searchTermLower = searchTerm.toLowerCase();
+                        return key.toLowerCase().includes(searchTermLower) ||
+                               (typeof value === 'string' && value.toLowerCase().includes(searchTermLower)) ||
+                               (typeof value === 'number' && String(value).toLowerCase().includes(searchTermLower));
                     }).map(([key, value]) => (
                       <Card key={key} className="shadow-md hover:shadow-lg transition-shadow flex flex-col bg-card border">
                         <CardHeader className="pb-2 pt-3 px-4">
@@ -346,32 +414,33 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
                         </CardHeader>
                         <CardContent className="flex-grow px-4 pb-3 pt-1">
                           <JsonNode
-                            path={[]} // Path is relative to this card's context, will be combined by handlers
+                            path={[key]} 
                             value={value}
-                            nodeKey={key} // Pass the key so JsonNode knows its context
+                            nodeKey={key} 
                             onUpdate={handleUpdate}
                             onDelete={handleDelete}
                             onAddProperty={handleAddProperty}
                             onAddItem={handleAddItem}
                             onRenameKey={handleRenameKey}
-                            depth={0} // Depth is 0 for the content within the card
+                            depth={0} 
                             getApiKey={getApiKey}
                             expansionTrigger={expansionTrigger}
                             searchTerm={searchTerm}
-                            onSetHoveredPath={onSetHoveredPath} // For consistency, though less critical in card items
-                            isInCardViewTopLevel={true} // True, as this is top-level content of a card
+                            // onSetHoveredPath intentionally omitted for card items
+                            isInCardViewTopLevel={true} 
                           />
                         </CardContent>
                       </Card>
                     ))
                   ) : ( <p className="col-span-full text-center text-muted-foreground py-4">This object is empty. {cardViewPath.length > 0 && <Button variant="link" onClick={handleCardViewBack}>Go back.</Button>}</p> )
-                ) : ( // It's an array
+                ) : ( 
                   currentCardData.length > 0 ? (
                     currentCardData.filter((item, index) => {
                         if (!searchTerm) return true;
-                        return (String(index).toLowerCase().includes(searchTerm.toLowerCase())) ||
-                               (typeof item === 'string' && item.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                               (typeof item === 'number' && String(item).toLowerCase().includes(searchTerm.toLowerCase()));
+                        const searchTermLower = searchTerm.toLowerCase();
+                        return (String(index).toLowerCase().includes(searchTermLower)) ||
+                               (typeof item === 'string' && item.toLowerCase().includes(searchTermLower)) ||
+                               (typeof item === 'number' && String(item).toLowerCase().includes(searchTermLower));
                     }).map((item, index) => (
                       <Card key={index} className="shadow-md hover:shadow-lg transition-shadow flex flex-col bg-card border">
                         <CardHeader className="pb-2 pt-3 px-4">
@@ -386,19 +455,19 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
                         </CardHeader>
                         <CardContent className="flex-grow px-4 pb-3 pt-1">
                            <JsonNode
-                            path={[]} // Path relative to this card's context
+                            path={[index]} 
                             value={item}
-                            // nodeKey is not needed for array items, JsonNode handles index display
                             onUpdate={handleUpdate}
                             onDelete={handleDelete}
                             onAddProperty={handleAddProperty}
                             onAddItem={handleAddItem}
                             onRenameKey={handleRenameKey}
-                            depth={0} // Depth is 0 for content within the card
+                            depth={0} 
                             getApiKey={getApiKey}
                             expansionTrigger={expansionTrigger}
                             searchTerm={searchTerm}
-                            isInCardViewTopLevel={true} // True, as this is top-level content of a card
+                            // onSetHoveredPath intentionally omitted for card items
+                            isInCardViewTopLevel={true} 
                           />
                         </CardContent>
                       </Card>
@@ -408,18 +477,32 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
               ) : (
                 <Card className="col-span-full">
                     <CardHeader>
-                        <CardTitle>Empty or Non-iterable</CardTitle>
+                        <CardTitle>
+                            {currentCardData === undefined ? "Invalid Path" : (currentCardData === null ? "Null Value" : "Primitive Value")}
+                        </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <p className="text-muted-foreground">
                         {currentCardData === undefined ?
-                            "Path leads to an invalid or non-existent value." :
-                            (currentCardData === null ? "The current value is null." : `The current value is: ${String(currentCardData)}`)
+                            "The navigation path leads to an invalid or non-existent value." :
+                            `The current value is: ${String(currentCardData)}.`
                         }
                         {(cardViewPath.length > 0 && (typeof currentCardData !== 'object' || currentCardData === null)) && " Cannot explore further."}
                         {(cardViewPath.length === 0 && (typeof jsonData !== 'object' || jsonData === null)) && " This section's root value cannot be displayed as cards."}
-                        {cardViewPath.length > 0 && <Button variant="link" onClick={handleCardViewBack}>Go back.</Button>}
                         </p>
+                        {cardViewPath.length > 0 && <Button variant="link" onClick={handleCardViewBack} className="mt-2">Go back to parent</Button>}
+                         {(cardViewPath.length === 0 && (typeof jsonData !== 'object' || jsonData === null) && jsonData !== undefined) && (
+                           <JsonNode
+                                path={[]}
+                                value={jsonData}
+                                nodeKey={title || "Root Value"}
+                                onUpdate={handleUpdate}
+                                onDelete={handleDelete}
+                                depth={0}
+                                getApiKey={getApiKey}
+                                isInCardViewTopLevel={true} // Treat as card content for styling
+                            />
+                        )}
                     </CardContent>
                 </Card>
               )}
@@ -430,4 +513,3 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     </TooltipProvider>
   );
 }
-
