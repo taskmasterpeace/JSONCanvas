@@ -16,14 +16,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Image from 'next/image';
 import { ClipboardPaste, LayoutDashboard } from 'lucide-react';
 
+const LOCAL_STORAGE_KEYS = {
+  DOCUMENTS_META: 'jsonCanvas_documentsMeta',
+  DOCUMENT_PREFIX: 'jsonCanvas_document_',
+  ACTIVE_DOCUMENT_ID: 'jsonCanvas_activeDocumentId',
+  API_KEY: 'google_ai_api_key',
+};
+
 const initialJson: JsonValue = {
   "projectInfo": {
     "projectName": "JSON Canvas Advanced Demo",
     "version": "1.2.0",
-    "description": "Welcome! This JSON demonstrates various data types and structures. Edit values, rename keys, and try AI features on text fields!",
+    "description": "Welcome! This JSON demonstrates various data types and structures. Edit values, rename keys, and try AI features on text fields! Use the sidebar to manage multiple documents. Your work is auto-saved!",
     "status": null,
     "isActive": true,
-    "tags": ["demo", "json", "canvas", "ai", "multi-document"],
+    "tags": ["demo", "json", "canvas", "ai", "multi-document", "auto-save"],
     "contact": {
       "name": "JSON Canvas Support",
       "email": "support@example.jsoncanvas.com",
@@ -34,11 +41,11 @@ const initialJson: JsonValue = {
       "Card View for objects/arrays",
       "AI Summarization & Enhancement for strings",
       "Markdown Preview & Full Editor for long strings",
-      "Import/Export JSON",
-      "Undo/Redo Functionality",
-      "AI Quick Import (Paste any text!)",
+      "Import/Export JSON to New Document",
+      "Undo/Redo Functionality Per Document",
+      "AI Quick Import (Paste any text to New Document!)",
       "AI JSON Formatting & Correction",
-      "Multi-Document Sidebar (Session Only)"
+      "Multi-Document Sidebar with Auto-Save to Local Storage"
     ],
     "lastUpdated": "2024-07-20T10:30:00Z",
     "readmeContent": "# Project Alpha\n\nThis is a *Markdown* example.\n\n- Feature 1\n- Feature 2\n\n```json\n{\n  \"sample\": \"code block\"\n}\n```\n\nVisit [our website](https://example.com) for more info. You can edit this long string using the Markdown editor or use AI tools to summarize or enhance it."
@@ -51,7 +58,7 @@ const initialJson: JsonValue = {
       "push": true,
       "frequency": 24
     },
-    "apiKeyStatus": "Not Set",
+    "apiKeyStatus": "Not Set", // This will be updated based on actual key presence
     "preferences": {
       "showTooltips": true,
       "fontSize": 14,
@@ -67,7 +74,7 @@ const initialJson: JsonValue = {
     [1, 2, 3, {"nested": "array", "deeplyNested": {"value": "here"}}],
     null
   ],
-  "notes": "This is a root-level note. Explore the tabbed interface or the card view. Use the sidebar to manage multiple documents in this session."
+  "notes": "This is a root-level note. Explore the tabbed interface or the card view. Use the sidebar to manage multiple documents in this session. All your changes are saved locally in your browser."
 };
 
 const createNewDocument = (data: JsonValue, name?: string): Document => {
@@ -82,8 +89,8 @@ const createNewDocument = (data: JsonValue, name?: string): Document => {
 };
 
 export default function Home() {
-  const [documents, setDocuments] = useState<Document[]>([createNewDocument(initialJson, "Welcome Document")]);
-  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(documents[0]?.id || null);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
@@ -93,49 +100,133 @@ export default function Home() {
   const [isClient, setIsClient] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Load documents from local storage on initial mount
+  useEffect(() => {
+    setIsClient(true); // Indicate client-side rendering is active
+
+    // Load API Key first
+    try {
+      const storedKey = localStorage.getItem(LOCAL_STORAGE_KEYS.API_KEY);
+      if (storedKey) {
+        setApiKey(storedKey);
+      }
+    } catch (error) {
+      console.error("Error reading API key from localStorage:", error);
+      toast({ title: 'Local Storage Error', description: 'Could not read API key from local storage.', variant: 'destructive' });
+    }
+
+    // Load documents
+    try {
+      const savedDocsMetaString = localStorage.getItem(LOCAL_STORAGE_KEYS.DOCUMENTS_META);
+      const loadedDocuments: Document[] = [];
+      if (savedDocsMetaString) {
+        const savedDocsMeta: { id: string; name: string }[] = JSON.parse(savedDocsMetaString);
+        for (const meta of savedDocsMeta) {
+          const docString = localStorage.getItem(`${LOCAL_STORAGE_KEYS.DOCUMENT_PREFIX}${meta.id}`);
+          if (docString) {
+            loadedDocuments.push(JSON.parse(docString));
+          }
+        }
+      }
+
+      if (loadedDocuments.length > 0) {
+        setDocuments(loadedDocuments);
+        const savedActiveId = localStorage.getItem(LOCAL_STORAGE_KEYS.ACTIVE_DOCUMENT_ID);
+        if (savedActiveId && loadedDocuments.some(doc => doc.id === savedActiveId)) {
+          setActiveDocumentId(savedActiveId);
+        } else {
+          setActiveDocumentId(loadedDocuments[0].id);
+        }
+      } else {
+        // No saved documents, create initial welcome document
+        const welcomeDoc = createNewDocument(initialJson, "Welcome Document");
+        setDocuments([welcomeDoc]);
+        setActiveDocumentId(welcomeDoc.id);
+        // Immediately save this initial state
+        localStorage.setItem(LOCAL_STORAGE_KEYS.DOCUMENTS_META, JSON.stringify([{ id: welcomeDoc.id, name: welcomeDoc.name }]));
+        localStorage.setItem(`${LOCAL_STORAGE_KEYS.DOCUMENT_PREFIX}${welcomeDoc.id}`, JSON.stringify(welcomeDoc));
+        localStorage.setItem(LOCAL_STORAGE_KEYS.ACTIVE_DOCUMENT_ID, welcomeDoc.id);
+      }
+    } catch (error) {
+      console.error("Error loading documents from localStorage:", error);
+      toast({ title: 'Local Storage Error', description: 'Could not load documents. Using default setup.', variant: 'destructive' });
+      // Fallback to initial setup if loading fails
+      const welcomeDoc = createNewDocument(initialJson, "Welcome Document");
+      setDocuments([welcomeDoc]);
+      setActiveDocumentId(welcomeDoc.id);
+    }
+  }, [toast]); // Added toast to dependency array
+
+  // Update API key status in the active document if its userSettings exist
+  useEffect(() => {
+    if (!isClient || !activeDocumentId) return;
+
+    setDocuments(prevDocs => {
+      return prevDocs.map(doc => {
+        if (doc.id === activeDocumentId && typeof doc.data === 'object' && doc.data !== null && !Array.isArray(doc.data) && 'userSettings' in doc.data) {
+          const userSettings = doc.data.userSettings as JsonObject;
+          if (typeof userSettings === 'object' && userSettings !== null && 'apiKeyStatus' in userSettings) {
+            const newStatus = apiKey ? "Google AI Key Set" : "Not Set";
+            if (userSettings.apiKeyStatus !== newStatus) {
+              return {
+                ...doc,
+                data: {
+                  ...doc.data,
+                  userSettings: { ...userSettings, apiKeyStatus: newStatus }
+                }
+                // Not adding to history for this meta change
+              };
+            }
+          }
+        }
+        return doc;
+      });
+    });
+  }, [apiKey, activeDocumentId, isClient]);
+
+  // Save documents to local storage whenever they change
+  useEffect(() => {
+    if (!isClient || documents.length === 0) return; // Don't save if not client or no documents
+
+    try {
+      const docsMeta = documents.map(doc => ({ id: doc.id, name: doc.name }));
+      localStorage.setItem(LOCAL_STORAGE_KEYS.DOCUMENTS_META, JSON.stringify(docsMeta));
+      documents.forEach(doc => {
+        localStorage.setItem(`${LOCAL_STORAGE_KEYS.DOCUMENT_PREFIX}${doc.id}`, JSON.stringify(doc));
+      });
+      if (activeDocumentId) {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.ACTIVE_DOCUMENT_ID, activeDocumentId);
+      }
+    } catch (error) {
+      console.error("Error saving documents to localStorage:", error);
+      toast({ title: 'Local Storage Error', description: 'Could not save documents automatically.', variant: 'destructive' });
+    }
+  }, [documents, activeDocumentId, isClient, toast]);
+
+
   const activeDocument = useMemo(() => {
     return documents.find(doc => doc.id === activeDocumentId);
   }, [documents, activeDocumentId]);
 
-  useEffect(() => {
-    setIsClient(true);
-    const storedKey = localStorage.getItem('google_ai_api_key');
-    if (storedKey) {
-      setApiKey(storedKey);
-      // Update apiKeyStatus in the initial document if it exists
-      setDocuments(prevDocs => {
-        if (prevDocs.length > 0 && typeof prevDocs[0].data === 'object' && prevDocs[0].data !== null && !Array.isArray(prevDocs[0].data) && 'userSettings' in prevDocs[0].data) {
-          const userSettings = prevDocs[0].data.userSettings as JsonObject;
-          if (typeof userSettings === 'object' && userSettings !== null && 'apiKeyStatus' in userSettings) {
-            const updatedInitialDocData = {
-              ...prevDocs[0].data,
-              userSettings: { ...userSettings, apiKeyStatus: "Google AI Key Set (Loaded from Local Storage)" }
-            };
-            const updatedInitialDoc = { ...prevDocs[0], data: updatedInitialDocData, history: [updatedInitialDocData, ...prevDocs[0].history.slice(1)] };
-            return [updatedInitialDoc, ...prevDocs.slice(1)];
-          }
-        }
-        return prevDocs;
-      });
-    }
-  }, []);
-
-
   const updateActiveDocumentData = useCallback((newJson: JsonValue, fromHistory = false) => {
-    if (!activeDocument) return;
+    if (!activeDocumentId) return; // Ensure activeDocumentId is used from state directly
     setDocuments(prevDocs =>
       prevDocs.map(doc => {
-        if (doc.id === activeDocument.id) {
+        if (doc.id === activeDocumentId) {
           const newHistory = fromHistory ? doc.history : [...doc.history.slice(0, doc.currentHistoryIndex + 1), newJson];
           const newIndex = fromHistory ? doc.currentHistoryIndex : newHistory.length - 1;
-          return { ...doc, data: newJson, history: newHistory, currentHistoryIndex: newIndex };
+          // Cap history at 50 entries
+          const cappedHistory = newHistory.length > 50 ? newHistory.slice(newHistory.length - 50) : newHistory;
+          const cappedIndex = newIndex >= newHistory.length - cappedHistory.length ? newIndex - (newHistory.length - cappedHistory.length) : 0;
+
+          return { ...doc, data: newJson, history: cappedHistory, currentHistoryIndex: cappedIndex };
         }
         return doc;
       })
     );
-  }, [activeDocument]);
+  }, [activeDocumentId]); // Rely on activeDocumentId from state
 
-  const handleJsonChange = (newJson: JsonValue) => { // For changes to the root of a section's data or the whole active doc data
+  const handleJsonChange = (newJson: JsonValue) => { 
     updateActiveDocumentData(newJson);
   };
   
@@ -240,17 +331,11 @@ export default function Home() {
   const getApiKey = useCallback(() => apiKey, [apiKey]);
   
   const handleApiKeySave = (newApiKey: string) => {
-    setApiKey(newApiKey);
-    if (activeDocument && typeof activeDocument.data === 'object' && activeDocument.data !== null && !Array.isArray(activeDocument.data) && 'userSettings' in activeDocument.data) {
-      const userSettings = activeDocument.data.userSettings as JsonObject;
-       if (typeof userSettings === 'object' && userSettings !== null && 'apiKeyStatus' in userSettings) {
-        const newStatus = newApiKey ? "Google AI Key Set" : "Not Set";
-        const updatedData = {
-          ...activeDocument.data,
-          userSettings: { ...userSettings, apiKeyStatus: newStatus }
-        };
-        updateActiveDocumentData(updatedData);
-      }
+    setApiKey(newApiKey); // This will trigger the useEffect to update apiKeyStatus in document
+    if (newApiKey) {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.API_KEY, newApiKey);
+    } else {
+        localStorage.removeItem(LOCAL_STORAGE_KEYS.API_KEY);
     }
   };
 
@@ -273,6 +358,14 @@ export default function Home() {
   const handleDeleteDocument = (docId: string) => {
     setDocuments(prevDocs => {
       const remainingDocs = prevDocs.filter(doc => doc.id !== docId);
+      // Also remove from local storage
+      try {
+        localStorage.removeItem(`${LOCAL_STORAGE_KEYS.DOCUMENT_PREFIX}${docId}`);
+      } catch (error) {
+        console.error("Error removing document from localStorage:", error);
+        // Toast not essential here as main state is updated
+      }
+
       if (remainingDocs.length === 0) {
         const newFallbackDoc = createNewDocument({ message: "All documents deleted. This is a new one." });
         setActiveDocumentId(newFallbackDoc.id);
@@ -305,7 +398,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Header
-        onImport={handleFileImportToNewDocument} // Changed to import to new doc
+        onImport={handleFileImportToNewDocument}
         onExport={handleExport}
         onUndo={handleUndo}
         canUndo={activeDocument ? activeDocument.currentHistoryIndex > 0 : false}
@@ -329,15 +422,57 @@ export default function Home() {
         />
         <ScrollArea className="flex-grow">
           <main className="container mx-auto p-4">
-            {!activeDocument && (
+            {!activeDocument && documents.length > 0 && ( // Show if no active doc but docs exist (e.g. after delete all and new one created)
               <Card className="my-4 shadow-lg">
                 <CardHeader><CardTitle>No Document Selected</CardTitle></CardHeader>
                 <CardContent><p>Please select a document from the sidebar, or add a new one to begin.</p></CardContent>
               </Card>
             )}
+            {/* Initial Welcome Message - show only if it's the very first load and only welcome doc exists */}
+            {documents.length === 1 && documents[0].name === "Welcome Document" && !localStorage.getItem(LOCAL_STORAGE_KEYS.DOCUMENTS_META)?.includes('Quick Import') && (
+              <Card className="mt-8 mb-4">
+                <CardHeader>
+                  <CardTitle className="text-lg text-primary">Welcome to JSON Canvas!</CardTitle>
+                  <CardDescription>A powerful, privacy-first tool for visual JSON editing and enhancement. Your work is auto-saved!</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p>
+                    This application allows you to load, edit, and save JSON documents directly in your browser. 
+                    Use the <LayoutDashboard className="inline h-4 w-4 align-middle" /> sidebar (toggle with the header button) to manage multiple documents.
+                    Within a document, use tabs (if your JSON has top-level keys) or the card/tree view to navigate.
+                    Click on values to edit them, use icons for actions like renaming keys, deleting items, or AI-powered enhancements for strings.
+                    Try the <ClipboardPaste className="inline h-4 w-4 align-middle" /> <strong>Quick Import</strong> button in the header to paste any text and have AI convert it to a new JSON document!
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <Image src="https://placehold.co/600x400.png" alt="JSON Tree Editor Screenshot" data-ai-hint="data structure" width={600} height={400} className="rounded-md shadow-md" />
+                    <Image src="https://placehold.co/600x400.png" alt="AI Enhancement Feature Screenshot" data-ai-hint="artificial intelligence" width={600} height={400} className="rounded-md shadow-md" />
+                  </div>
+                  <p>
+                    <strong>Key Features:</strong>
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    <li>Interactive tree view for complex JSON structures.</li>
+                    <li>Card view for alternative navigation of objects/arrays.</li>
+                    <li>AI-powered Quick Import: Paste any text, get a new JSON document.</li>
+                    <li>AI-powered JSON formatting and error correction via "Edit Entire JSON".</li>
+                    <li>Full CRUD operations at any nesting level.</li>
+                    <li>Markdown preview and dedicated modal editor for long text fields.</li>
+                    <li>AI-powered summarization and content enhancement for string values.</li>
+                    <li>Local import/export of JSON files.</li>
+                    <li>Undo/Redo functionality per document (auto-saved).</li>
+                    <li>Copy values to clipboard.</li>
+                    <li>All documents and their history are automatically saved to your browser's local storage.</li>
+                  </ul>
+                  <p className="text-sm text-muted-foreground">
+                    Your Google AI API key (if provided) is stored locally. Document data is auto-saved locally.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             {activeDocument && currentJsonData && (
               topLevelKeys.length > 0 ? (
-                <Tabs defaultValue={topLevelKeys[0]} key={activeDocumentId} className="w-full"> {/* Added key to force re-render on doc change */}
+                <Tabs defaultValue={topLevelKeys[0]} key={activeDocumentId} className="w-full"> 
                   <TabsList className="bg-card border shadow-sm">
                     {topLevelKeys.map(key => (
                       <TabsTrigger key={key} value={key} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
@@ -375,51 +510,17 @@ export default function Home() {
                 </Card>
               )
             )}
-            {activeDocument && !currentJsonData && (
+            {activeDocument && !currentJsonData && ( // Document exists but its data is null/undefined
                  <Card className="my-4 shadow-lg">
                     <CardHeader><CardTitle className="text-xl font-semibold text-primary">{activeDocument.name}</CardTitle></CardHeader>
                     <CardContent><p className="text-muted-foreground">This document's data is empty or invalid.</p></CardContent>
                 </Card>
             )}
-
-            {documents.length === 1 && documents[0].name === "Welcome Document" && (
-              <Card className="mt-8 mb-4">
-                <CardHeader>
-                  <CardTitle className="text-lg text-primary">Welcome to JSON Canvas!</CardTitle>
-                  <CardDescription>A powerful, privacy-first tool for visual JSON editing and enhancement.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p>
-                    This application allows you to load, edit, and save JSON documents directly in your browser. 
-                    Use the <LayoutDashboard className="inline h-4 w-4 align-middle" /> sidebar (toggle with the header button) to manage multiple documents in this session.
-                    Within a document, use tabs (if your JSON has top-level keys) or the card/tree view to navigate.
-                    Click on values to edit them, use icons for actions like renaming keys, deleting items, or AI-powered enhancements for strings.
-                    Try the <ClipboardPaste className="inline h-4 w-4 align-middle" /> <strong>Quick Import</strong> button in the header to paste any text and have AI convert it to a new JSON document!
-                  </p>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <Image src="https://placehold.co/600x400.png" alt="JSON Tree Editor Screenshot" data-ai-hint="data structure" width={600} height={400} className="rounded-md shadow-md" />
-                    <Image src="https://placehold.co/600x400.png" alt="AI Enhancement Feature Screenshot" data-ai-hint="artificial intelligence" width={600} height={400} className="rounded-md shadow-md" />
-                  </div>
-                  <p>
-                    <strong>Key Features:</strong>
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    <li>Interactive tree view for complex JSON structures.</li>
-                    <li>Card view for alternative navigation of objects/arrays.</li>
-                    <li>AI-powered Quick Import: Paste any text, get a new JSON document.</li>
-                    <li>AI-powered JSON formatting and error correction via "Edit Entire JSON".</li>
-                    <li>Full CRUD operations at any nesting level.</li>
-                    <li>Markdown preview and dedicated modal editor for long text fields.</li>
-                    <li>AI-powered summarization and content enhancement for string values.</li>
-                    <li>Local import/export of JSON files.</li>
-                    <li>Undo/Redo functionality per document.</li>
-                    <li>Copy values to clipboard.</li>
-                  </ul>
-                  <p className="text-sm text-muted-foreground">
-                    Your data and Google AI API key (if provided for AI features) are stored locally in your browser. The key is sent to Google AI services when using AI features. Document data is session-only.
-                  </p>
-                </CardContent>
-              </Card>
+            {documents.length === 0 && isClient && ( // Truly no documents, after initial load attempt
+                <Card className="my-4 shadow-lg">
+                  <CardHeader><CardTitle>No Documents</CardTitle></CardHeader>
+                  <CardContent><p>Create or import a document using the sidebar to get started.</p></CardContent>
+                </Card>
             )}
           </main>
         </ScrollArea>
@@ -434,16 +535,17 @@ export default function Home() {
           open={isEditEntireJsonDialogOpen}
           onOpenChange={setIsEditEntireJsonDialogOpen}
           currentJson={activeDocument.data}
-          onSave={handleJsonChange} // Operates on active document's data
+          onSave={handleJsonChange} 
           getApiKey={getApiKey} 
         />
       )}
       <QuickImportDialog
         open={isQuickImportDialogOpen}
         onOpenChange={setIsQuickImportDialogOpen}
-        onImport={handleQuickImportToNewDocument} // Changed to import to new doc
+        onImport={handleQuickImportToNewDocument}
         getApiKey={getApiKey}
       />
     </div>
   );
 }
+

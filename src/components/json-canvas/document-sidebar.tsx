@@ -141,8 +141,9 @@ export function DocumentSidebar({
             ))}
           </ul>
         </ScrollArea>
-        <p className="text-xs text-muted-foreground text-center p-1">Document state is session-only.</p>
+        <p className="text-xs text-muted-foreground text-center p-1">Documents are auto-saved locally.</p>
       </aside>
     </TooltipProvider>
   );
 }
+
