@@ -39,7 +39,7 @@ const getNestingLevelClasses = (depth: number) => {
   ];
   const selectedBg = bgColors[depth % bgColors.length];
   const selectedBorder = borderColors[depth % borderColors.length];
-  return `border-l-2 pl-3 ml-1 my-1 ${selectedBorder} ${selectedBg} rounded-r-md py-1 group/node-item`;
+  return `border-l-2 pl-3 ml-1 py-0.5 ${selectedBorder} ${selectedBg} rounded-r-md group/node-item`;
 };
 
 // Helper function to highlight search term in text
@@ -79,7 +79,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   expansionTrigger,
   searchTerm,
   onSetHoveredPath,
-  isInCardViewTopLevel = false, // Default to false
+  isInCardViewTopLevel = false,
 }) => {
   // State for adding new properties/items must be declared before useEffects that use them
   const [isAddingProperty, setIsAddingProperty] = useState(false);
@@ -110,37 +110,20 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const { toast } = useToast();
 
   const isEffectivelyExpanded = useMemo(() => {
-    // If value is not an object/array, it cannot be expanded/collapsed.
     if (!(typeof value === 'object' && value !== null)) {
-      return isLocallyExpanded; // Default to true for primitives, non-visual expansion
-    }
-
-    // If no global expansionTrigger is active, defer to the node's local state.
-    if (!expansionTrigger) {
       return isLocallyExpanded;
     }
-
-    // At this point, value is an object/array and expansionTrigger is a non-null object.
-    const triggerPath = expansionTrigger.path;
-
-    // Case 1: Global trigger (path is null) - applies to all expandable nodes in the current context (tree or card root).
-    if (triggerPath === null) {
-      return expansionTrigger.type === 'expand';
+    if (expansionTrigger) {
+      const triggerPath = expansionTrigger.path;
+      if (triggerPath === null) { // Global trigger
+        return expansionTrigger.type === 'expand';
+      }
+      if (Array.isArray(triggerPath) &&
+          path.length === triggerPath.length &&
+          triggerPath.every((pVal, i) => path[i] === pVal)) {
+        return expansionTrigger.type === 'expand';
+      }
     }
-
-    // Case 2: Path-specific trigger (applies if the trigger's path matches the node's full path).
-    // Ensure triggerPath is an array before accessing its length.
-    // This check is relevant for nodes within a specific expansion context (e.g., within a card being expanded/collapsed globally)
-    if (
-      Array.isArray(triggerPath) && // triggerPath is the path *of the context* being triggered
-      path.length >= triggerPath.length && // current node's path must be at or deeper than trigger context
-      triggerPath.every((pVal, i) => path[i] === pVal) // current node's path starts with trigger context path
-    ) {
-      return expansionTrigger.type === 'expand';
-    }
-
-    // If the trigger is for a different path, or triggerPath was malformed,
-    // then this specific node should defer to its local expansion state.
     return isLocallyExpanded;
   }, [expansionTrigger, path, value, isLocallyExpanded]);
 
@@ -349,13 +332,11 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
   const isPrimitiveOrNull = typeof value !== 'object' || value === null;
 
-  // Context for stacked display (key above value), primarily for primitives within cards
   const isStackedDisplayContext =
     isInCardViewTopLevel &&
     nodeKey !== undefined &&
     isPrimitiveOrNull;
 
-  // Context for summary display (e.g., "Object {3 keys}"), for objects/arrays within cards
   const isSummaryDisplayContext =
     isInCardViewTopLevel &&
     nodeKey !== undefined &&
@@ -383,11 +364,11 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
     if (typeof value === 'string') {
        valueStringForSearch = value;
-      if (showMarkdownPreview && value.length > 50 && !isInCardViewTopLevel) { // Don't show markdown preview inside cards for now to keep them compact
+      if (showMarkdownPreview && value.length > 50 && !isInCardViewTopLevel) {
         displayValueNode = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1 w-full" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
       } else {
         const Tag = isStackedDisplayContext ? 'div' : 'span';
-        displayValueNode = <Tag className={cn("font-mono text-sm text-green-600 dark:text-green-400 break-words", isStackedDisplayContext ? "w-full" : "min-w-0")}>"{getHighlightedText(value, searchTerm || "")}"</Tag>;
+        displayValueNode = <Tag className={cn("font-mono text-sm text-green-600 dark:text-green-400 break-words", isStackedDisplayContext ? "w-full min-w-0" : "min-w-0")}>"{getHighlightedText(value, searchTerm || "")}"</Tag>;
       }
     } else if (typeof value === 'number') {
       valueStringForSearch = String(value);
@@ -399,7 +380,6 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       valueStringForSearch = "null";
       displayValueNode = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{getHighlightedText("null", searchTerm || "")}</span>;
     } else {
-       // Objects and arrays are handled by recursive JsonNode rendering or summary display, not here.
        return null;
     }
 
@@ -437,30 +417,32 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
     <TooltipProvider delayDuration={300}>
       <div
         className={cn(
-            "space-y-1",
-            (depth > 0 || (depth === 0 && nodeKey === undefined && !isInCardViewTopLevel)) && getNestingLevelClasses(depth) // Apply nesting style if not a top-level card item
+            (depth > 0 || (depth === 0 && nodeKey === undefined && !isInCardViewTopLevel)) && getNestingLevelClasses(depth)
           )}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
         <div className={cn(
           "group/node-item-header min-h-[32px] w-full",
-           isStackedDisplayContext || isSummaryDisplayContext
-            ? "flex flex-col items-start py-1" // For card summaries and stacked primitives in cards
-            : "flex items-center space-x-2"    // Default for tree view
+           isStackedDisplayContext
+            ? "flex flex-col items-start py-1" 
+            : "flex items-center space-x-2"    // Default for tree view & summary display context
         )}>
           {/* Line 1: Key, Type Label (for objects/arrays), and Action Buttons */}
-          <div className="flex items-center w-full">
+          <div className={cn(
+              "flex items-center w-full",
+              isStackedDisplayContext && "mb-0.5" // Add a small margin if stacked
+            )}>
             {/* Chevron: Render if it's an object/array AND NOT a summary in a card view top level */}
             {(typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext) && (
-              <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center" aria-label={isEffectivelyExpanded ? "Collapse" : "Expand"}>
+              <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center flex-shrink-0" aria-label={isEffectivelyExpanded ? "Collapse" : "Expand"}>
                 {isEffectivelyExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               </Button>
             )}
 
             {nodeKey !== undefined && (
               isEditingKey ? (
-                <div className="flex items-center">
+                <div className="flex items-center flex-shrink-0">
                   <Input
                     ref={keyInputRef}
                     value={newKeyName}
@@ -475,32 +457,38 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
               ) : (
                 <span
                   className={cn(
-                    "font-semibold text-sm group-hover/node-item:text-accent py-1",
-                    isStackedDisplayContext || isSummaryDisplayContext ? "text-card-foreground" : "text-primary cursor-pointer"
+                    "font-semibold text-sm group-hover/node-item:text-accent py-1 flex-shrink-0",
+                     isStackedDisplayContext ? "text-card-foreground cursor-pointer" : "text-primary cursor-pointer", // Key is clickable in stacked card view too
+                     isSummaryDisplayContext && "text-primary cursor-default" // But not in summary card view
                   )}
-                  onClick={() => { if (!isSummaryDisplayContext && !isStackedDisplayContext) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } }}
+                  onClick={() => { if (nodeKey && onRenameKey && !isSummaryDisplayContext) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } }}
                 >
                   {displayKey}:
                 </span>
               )
             )}
+            
+            <div className="flex items-center flex-grow min-w-0"> {/* This div will contain value and type label */}
+                {/* Type Label - shown for tree view items or array items if not summary/stacked context */}
+                {typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext && (
+                   <span className="text-xs text-muted-foreground ml-1">
+                      {typeLabel}
+                      {isEffectivelyExpanded && ((Array.isArray(value) && value.length === 0) || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) ? ' (empty)' : ''}
+                      {!isEffectivelyExpanded && Array.isArray(value) ? ` [${value.length} item${value.length === 1 ? '' : 's'}]` : ''}
+                      {!isEffectivelyExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
+                   </span>
+                )}
 
-            {/* Type Label - shown for tree view items or array items if not summary/stacked context */}
-            {typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext && (
-               <span className="text-xs text-muted-foreground ml-1">
-                  {typeLabel}
-                  {isEffectivelyExpanded && ((Array.isArray(value) && value.length === 0) || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) ? ' (empty)' : ''}
-                  {!isEffectivelyExpanded && Array.isArray(value) ? ` [${value.length} item${value.length === 1 ? '' : 's'}]` : ''}
-                  {!isEffectivelyExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
-               </span>
-            )}
-
-            {/* Render primitive value inline if it's an array item in tree view */}
-            {isPrimitiveOrNull && !isStackedDisplayContext && nodeKey === undefined && !isEditing && renderValue()}
+                {/* Render primitive value inline if it's an array item in tree view OR a non-stacked primitive in tree view */}
+                {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey === undefined && !isEditing && renderValue()}
+                {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey !== undefined && !isEditing && (
+                    <span className="ml-1">{renderValue()}</span>
+                )}
+            </div>
 
 
-            <div className="flex items-center space-x-1 ml-auto pl-2 opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100">
-              {isEditing && !isStackedDisplayContext && !isSummaryDisplayContext ? (
+            <div className="flex items-center space-x-1 ml-auto pl-2 flex-shrink-0 opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100">
+              {isEditing && !isStackedDisplayContext ? ( // Don't show these specific save/cancel if stacked, handled below
                 <>
                   <div className={getButtonAnimationClasses()}>
                     <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1"><CheckIcon size={16} /></Button></TooltipTrigger><TooltipContent><p>Save Value</p></TooltipContent></Tooltip>
@@ -516,12 +504,12 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                   <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setEditValue(typeof value === 'string' ? value : JSON.stringify(value)); setIsEditing(true);}} className="h-6 w-6 p-1"><Edit3 size={16} /></Button></TooltipTrigger><TooltipContent><p>Edit Value</p></TooltipContent></Tooltip>
                 </div>
               )}
-               {nodeKey !== undefined && onRenameKey && !isStackedDisplayContext && !isSummaryDisplayContext && (
+               {nodeKey !== undefined && onRenameKey && !isSummaryDisplayContext && !isStackedDisplayContext && ( // Key rename button for tree items
                   <div className={getButtonAnimationClasses()}>
                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setNewKeyName(nodeKey || ''); setIsEditingKey(true); }} className="h-6 w-6 p-1"><ALargeSmall size={16}/></Button></TooltipTrigger><TooltipContent><p>Rename Key</p></TooltipContent></Tooltip>
                   </div>
               )}
-              {(isPrimitiveOrNull || (typeof value === 'object' && value !== null)) && (
+              {(isPrimitiveOrNull || (typeof value === 'object' && value !== null)) && ( // Copy always available
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={handleCopyToClipboard} className="h-6 w-6 p-1"><ClipboardCopy size={16} /></Button></TooltipTrigger><TooltipContent><p>Copy Value</p></TooltipContent></Tooltip>
                 </div>
@@ -577,12 +565,9 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 </span>
             </div>
           )}
-
-           {/* Inline display for primitive value in tree view */}
-           {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey !== undefined && !isEditing && renderValue()}
         </div>
 
-        {isAddingProperty && isEffectivelyExpanded && !isSummaryDisplayContext && (
+        {isAddingProperty && isEffectivelyExpanded && !isSummaryDisplayContext && !isInCardViewTopLevel && (
             <div className="pl-6 my-2 space-y-2 border-l-2 border-dashed border-gray-300 dark:border-gray-600 ml-2 py-2 rounded-md">
                 {typeof value === 'object' && !Array.isArray(value) && value !== null && onAddProperty && (
                      <Input
@@ -643,7 +628,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                     expansionTrigger={expansionTrigger}
                     searchTerm={searchTerm}
                     onSetHoveredPath={onSetHoveredPath}
-                    isInCardViewTopLevel={false} // Children are not top-level card items
+                    isInCardViewTopLevel={false} 
                   />
                 ))
               : Object.entries(value).map(([key, val]) => (
@@ -662,10 +647,10 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                     expansionTrigger={expansionTrigger}
                     searchTerm={searchTerm}
                     onSetHoveredPath={onSetHoveredPath}
-                    isInCardViewTopLevel={false} // Children are not top-level card items
+                    isInCardViewTopLevel={false} 
                   />
                 ))}
-            {((onAddProperty && typeof value === 'object' && !Array.isArray(value)) || (onAddItem && Array.isArray(value))) && !isSummaryDisplayContext ? (
+            {((onAddProperty && typeof value === 'object' && !Array.isArray(value)) || (onAddItem && Array.isArray(value))) && !isSummaryDisplayContext && !isInCardViewTopLevel && (
              <Button
                 variant="outline"
                 size="sm"
@@ -679,7 +664,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
               >
                 <PlusCircle size={14} className="mr-1" /> {Array.isArray(value) ? "Add Item" : "Add Property"}
             </Button>
-            ) : null}
+            )}
           </div>
         )}
 
