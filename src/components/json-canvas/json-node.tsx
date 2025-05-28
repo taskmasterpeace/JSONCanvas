@@ -110,7 +110,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   
   // Determine effective expansion state
   const isEffectivelyExpanded = useMemo(() => {
-    if (expansionTrigger && typeof value === 'object' && value !== null) {
+    if (typeof value === 'object' && value !== null && expansionTrigger) {
       return expansionTrigger.type === 'expand';
     }
     return isLocallyExpanded;
@@ -338,7 +338,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       if (showMarkdownPreview && value.length > 50) { 
         displayValue = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
       } else {
-        displayValue = <span className="font-mono text-sm text-green-600 dark:text-green-400 break-all">"{getHighlightedText(value, searchTerm || "")}"</span>;
+        displayValue = <span className="font-mono text-sm text-green-600 dark:text-green-400 break-words">"{getHighlightedText(value, searchTerm || "")}"</span>;
       }
     } else if (typeof value === 'number') {
       valueStringForSearch = String(value);
