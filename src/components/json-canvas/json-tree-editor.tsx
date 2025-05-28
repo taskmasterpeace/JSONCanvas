@@ -4,7 +4,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import type { JsonValue, JsonPath, ExpansionTrigger, JsonObject, JsonArray } from './types';
 import { JsonNode } from './json-node';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -20,7 +20,7 @@ interface JsonTreeEditorProps {
 }
 
 export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: JsonTreeEditorProps) {
-  const [expansionTrigger, setExpansionTrigger] = useState<ExpansionTrigger>(null);
+  const [expansionTrigger, setExpansionTrigger] = useState<ExpansionTrigger | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredPath, setHoveredPath] = useState<JsonPath | null>(null);
   const [viewMode, setViewMode] = useState<'tree' | 'cards'>('tree');
@@ -52,15 +52,15 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     }
     setExpansionTrigger(null); 
     setSearchTerm(''); 
-  }, [jsonData, viewMode]);
+  }, [jsonData, viewMode, title]); // Added title here to reset cardViewPath if section changes
 
    useEffect(() => {
-    setExpansionTrigger(null); // Reset global trigger when main data changes
-  }, [jsonData]);
+    setExpansionTrigger(null); 
+  }, [jsonData, title]);
 
 
   const handleUpdate = useCallback((path: JsonPath, newValue: JsonValue) => {
-    const newJson = JSON.parse(JSON.stringify(jsonData)); // Deep copy
+    const newJson = JSON.parse(JSON.stringify(jsonData)); 
     
     let baseDataRef = newJson;
 
@@ -76,16 +76,15 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
       baseDataRef = currentLevel; 
     }
     
-    if (path.length === 0) { // This means we are updating the root of the current view (either the section root, or the root of a card drill-down)
+    if (path.length === 0) { 
         if (viewMode === 'cards' && cardViewPath.length > 0) {
-            // Need to find the parent of the current cardViewPath in the original jsonData
             let parent = newJson;
             for (let i = 0; i < cardViewPath.length - 1; i++) {
                 parent = parent[cardViewPath[i]];
             }
             parent[cardViewPath[cardViewPath.length -1]] = newValue;
             onJsonChange(newJson);
-        } else { // Tree view, or card view root
+        } else { 
              onJsonChange(newValue); 
         }
         return;
@@ -106,7 +105,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   }, [jsonData, onJsonChange, cardViewPath, viewMode, toast]);
 
   const handleDelete = useCallback((path: JsonPath, keyOrIndex?: string | number) => {
-    const newJson = JSON.parse(JSON.stringify(jsonData)); // Deep copy
+    const newJson = JSON.parse(JSON.stringify(jsonData)); 
     
     let baseDataParentRef = null;
     let lastSegmentOfBase = null;
@@ -422,7 +421,16 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
             </div>
         </CardHeader>
         <CardContent className="pt-2">
-          {viewMode === 'tree' ? (
+          {typeof jsonData !== 'object' || jsonData === null ? (
+            <div className="text-center text-muted-foreground py-4">
+              {jsonData === null
+                ? "This section's data is null."
+                : jsonData === undefined
+                ? "No data available for this section."
+                : `This section contains a primitive value: "${String(jsonData)}".`}
+              <p className="text-sm mt-1">Consider editing the raw JSON or importing new data if an object or array is expected here.</p>
+            </div>
+          ) : viewMode === 'tree' ? (
             <JsonNode
                 path={[]}
                 value={jsonData}
@@ -454,7 +462,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
                                (typeof value === 'boolean' && String(value).toLowerCase().includes(searchTermLower));
                     }).map(([key, value]) => (
                       <Card key={key} className="shadow-md hover:shadow-lg transition-shadow flex flex-col bg-card border">
-                         <CardContent className="flex-grow px-4 py-3 min-h-[7rem] flex flex-col justify-center">
+                         <CardContent className="flex-grow px-4 py-3 min-h-[7rem] flex flex-col justify-start">
                           <JsonNode
                             path={[key]} 
                             value={value}
@@ -493,7 +501,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
                                (typeof item === 'boolean' && String(item).toLowerCase().includes(searchTermLower));
                     }).map((item, index) => (
                       <Card key={index} className="shadow-md hover:shadow-lg transition-shadow flex flex-col bg-card border">
-                         <CardContent className="flex-grow px-4 py-3 min-h-[7rem] flex flex-col justify-center">
+                         <CardContent className="flex-grow px-4 py-3 min-h-[7rem] flex flex-col justify-start">
                            <JsonNode
                             path={[index]} 
                             value={item}

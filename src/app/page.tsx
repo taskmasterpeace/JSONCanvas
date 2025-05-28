@@ -508,8 +508,8 @@ export default function Home() {
                     Want to start fresh? Use the <ClipboardPaste className="inline h-4 w-4 align-middle" /> <strong>Quick Import</strong> button in the header!
                   </p>
                   <div className="grid md:grid-cols-2 gap-4">
-                    <Image src="https://placehold.co/600x400.png" alt="JSON Tree Editor Screenshot" data-ai-hint="data structure" width={600} height={400} className="rounded-md shadow-md" />
-                    <Image src="https://placehold.co/600x400.png" alt="AI Enhancement Feature Screenshot" data-ai-hint="artificial intelligence" width={600} height={400} className="rounded-md shadow-md" />
+                    <Image src="https://placehold.co/600x400.png" alt="JSON Tree Editor Screenshot" data-ai-hint="json tree editor" width={600} height={400} className="rounded-md shadow-md" />
+                    <Image src="https://placehold.co/600x400.png" alt="AI Enhancement Feature Screenshot" data-ai-hint="ai text enhancement" width={600} height={400} className="rounded-md shadow-md" />
                   </div>
                   <p>
                     <strong>Key Features:</strong>
@@ -559,9 +559,14 @@ export default function Home() {
                  <Card className="my-4 shadow-lg">
                     <CardHeader>
                         <CardTitle className="text-xl font-semibold text-primary">{activeDocument.name}</CardTitle>
-                        {(typeof currentJsonData !== 'object' || currentJsonData === null || Object.keys(currentJsonData).length === 0) && 
-                            <CardDescription>The current document is not a non-empty object with keys. Displaying root value. Use Quick Import or File Import to load new data into a new document.</CardDescription>
-                        }
+                        <CardDescription>
+                          {typeof currentJsonData !== 'object' || currentJsonData === null
+                            ? "The current document's root value is not an object, or is null. Displaying the raw value."
+                            : Object.keys(currentJsonData).length === 0
+                            ? "The current document is an empty object. You can add properties using the editor below, or import/create new data."
+                            : "This document's root is not a multi-key object suitable for tabbing. Displaying the root value. Use 'Edit Entire JSON' or import to modify."
+                          }
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <JsonTreeEditor
