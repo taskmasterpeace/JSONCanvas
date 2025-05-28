@@ -438,10 +438,22 @@ export default function Home() {
                 <CardContent className="space-y-4">
                   <p>
                     This application allows you to load, edit, and save JSON documents directly in your browser. 
+                    Your work is automatically saved to your browser's local storage!
+                  </p>
+                  <p className="mt-2">
+                    The currently loaded <strong>"Welcome Document"</strong> (visible in the tabs like <code>projectInfo</code>, <code>userSettings</code>, etc.) is a live demo. 
+                    Explore its structure by clicking through the tabs and expanding nodes to see examples of:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-sm my-3 bg-muted p-3 rounded-md">
+                    <li><strong>Nested Objects:</strong> e.g., <code>projectInfo.contact</code>, <code>userSettings.preferences</code></li>
+                    <li><strong>Arrays:</strong> e.g., <code>projectInfo.tags</code> (strings), <code>sampleData</code> (mixed types including objects, numbers, booleans, nulls, and nested arrays)</li>
+                    <li><strong>Various Data Types:</strong> Strings, numbers, booleans (e.g., <code>projectInfo.isActive</code>), and null values (e.g., <code>projectInfo.status</code>)</li>
+                    <li><strong>Long Text for Markdown:</strong> Edit <code>projectInfo.readmeContent</code> to see Markdown preview and AI tools.</li>
+                  </ul>
+                  <p>
                     Use the <LayoutDashboard className="inline h-4 w-4 align-middle" /> sidebar (toggle with the header button) to manage multiple documents.
-                    Within a document, use tabs (if your JSON has top-level keys) or the card/tree view to navigate.
-                    Click on values to edit them, use icons for actions like renaming keys, deleting items, or AI-powered enhancements for strings.
-                    Try the <ClipboardPaste className="inline h-4 w-4 align-middle" /> <strong>Quick Import</strong> button in the header to paste any text and have AI convert it to a new JSON document!
+                    Within this document, try the Tree and Card views. Click on values to edit them, use icons for actions like renaming keys, or try AI features on strings.
+                    Want to start fresh? Use the <ClipboardPaste className="inline h-4 w-4 align-middle" /> <strong>Quick Import</strong> button in the header!
                   </p>
                   <div className="grid md:grid-cols-2 gap-4">
                     <Image src="https://placehold.co/600x400.png" alt="JSON Tree Editor Screenshot" data-ai-hint="data structure" width={600} height={400} className="rounded-md shadow-md" />
