@@ -21,6 +21,7 @@ const LOCAL_STORAGE_KEYS = {
   DOCUMENT_PREFIX: 'jsonCanvas_document_',
   ACTIVE_DOCUMENT_ID: 'jsonCanvas_activeDocumentId',
   API_KEY: 'google_ai_api_key',
+  THEME: 'jsonCanvas_theme',
 };
 
 const initialJson: JsonValue = {
@@ -51,7 +52,7 @@ const initialJson: JsonValue = {
     "readmeContent": "# Project Alpha\n\nThis is a *Markdown* example.\n\n- Feature 1\n- Feature 2\n\n```json\n{\n  \"sample\": \"code block\"\n}\n```\n\nVisit [our website](https://example.com) for more info. You can edit this long string using the Markdown editor or use AI tools to summarize or enhance it."
   },
   "userSettings": {
-    "theme": "system-preference",
+    "theme": "system-preference", // Will be updated by actual theme preference
     "notifications": {
       "email": true,
       "sms": false,
@@ -99,12 +100,51 @@ export default function Home() {
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+
+  // Theme management
+  useEffect(() => {
+    if (!isClient) return;
+    const storedTheme = localStorage.getItem(LOCAL_STORAGE_KEYS.THEME) as 'light' | 'dark' | null;
+    if (storedTheme) {
+      setTheme(storedTheme);
+      if (storedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } else {
+      // Default to light or system preference if desired
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        setTheme('dark');
+        document.documentElement.classList.add('dark');
+        localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, 'dark');
+      } else {
+        setTheme('light');
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, 'light');
+      }
+    }
+  }, [isClient]);
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
 
   // Load documents from local storage on initial mount
   useEffect(() => {
-    setIsClient(true); // Indicate client-side rendering is active
+    setIsClient(true); 
 
-    // Load API Key first
     try {
       const storedKey = localStorage.getItem(LOCAL_STORAGE_KEYS.API_KEY);
       if (storedKey) {
@@ -115,7 +155,6 @@ export default function Home() {
       toast({ title: 'Local Storage Error', description: 'Could not read API key from local storage.', variant: 'destructive' });
     }
 
-    // Load documents
     try {
       const savedDocsMetaString = localStorage.getItem(LOCAL_STORAGE_KEYS.DOCUMENTS_META);
       const loadedDocuments: Document[] = [];
@@ -138,11 +177,9 @@ export default function Home() {
           setActiveDocumentId(loadedDocuments[0].id);
         }
       } else {
-        // No saved documents, create initial welcome document
         const welcomeDoc = createNewDocument(initialJson, "Welcome Document");
         setDocuments([welcomeDoc]);
         setActiveDocumentId(welcomeDoc.id);
-        // Immediately save this initial state
         localStorage.setItem(LOCAL_STORAGE_KEYS.DOCUMENTS_META, JSON.stringify([{ id: welcomeDoc.id, name: welcomeDoc.name }]));
         localStorage.setItem(`${LOCAL_STORAGE_KEYS.DOCUMENT_PREFIX}${welcomeDoc.id}`, JSON.stringify(welcomeDoc));
         localStorage.setItem(LOCAL_STORAGE_KEYS.ACTIVE_DOCUMENT_ID, welcomeDoc.id);
@@ -150,14 +187,13 @@ export default function Home() {
     } catch (error) {
       console.error("Error loading documents from localStorage:", error);
       toast({ title: 'Local Storage Error', description: 'Could not load documents. Using default setup.', variant: 'destructive' });
-      // Fallback to initial setup if loading fails
       const welcomeDoc = createNewDocument(initialJson, "Welcome Document");
       setDocuments([welcomeDoc]);
       setActiveDocumentId(welcomeDoc.id);
     }
-  }, [toast]); // Added toast to dependency array
+  }, [toast]); 
 
-  // Update API key status in the active document if its userSettings exist
+  // Update API key status and theme in the active document if its userSettings exist
   useEffect(() => {
     if (!isClient || !activeDocumentId) return;
 
@@ -165,16 +201,34 @@ export default function Home() {
       return prevDocs.map(doc => {
         if (doc.id === activeDocumentId && typeof doc.data === 'object' && doc.data !== null && !Array.isArray(doc.data) && 'userSettings' in doc.data) {
           const userSettings = doc.data.userSettings as JsonObject;
-          if (typeof userSettings === 'object' && userSettings !== null && 'apiKeyStatus' in userSettings) {
-            const newStatus = apiKey ? "Google AI Key Set" : "Not Set";
-            if (userSettings.apiKeyStatus !== newStatus) {
+          if (typeof userSettings === 'object' && userSettings !== null) {
+            let updatedUserSettings = { ...userSettings };
+            let changed = false;
+
+            if ('apiKeyStatus' in userSettings) {
+              const newStatus = apiKey ? "Google AI Key Set" : "Not Set";
+              if (userSettings.apiKeyStatus !== newStatus) {
+                updatedUserSettings.apiKeyStatus = newStatus;
+                changed = true;
+              }
+            }
+            
+            // Update theme in userSettings.theme as well
+            if ('theme' in userSettings) {
+                if (userSettings.theme !== theme) {
+                    updatedUserSettings.theme = theme;
+                    changed = true;
+                }
+            }
+
+
+            if (changed) {
               return {
                 ...doc,
                 data: {
                   ...doc.data,
-                  userSettings: { ...userSettings, apiKeyStatus: newStatus }
+                  userSettings: updatedUserSettings
                 }
-                // Not adding to history for this meta change
               };
             }
           }
@@ -182,11 +236,11 @@ export default function Home() {
         return doc;
       });
     });
-  }, [apiKey, activeDocumentId, isClient]);
+  }, [apiKey, activeDocumentId, isClient, theme]);
 
   // Save documents to local storage whenever they change
   useEffect(() => {
-    if (!isClient || documents.length === 0) return; // Don't save if not client or no documents
+    if (!isClient || documents.length === 0) return; 
 
     try {
       const docsMeta = documents.map(doc => ({ id: doc.id, name: doc.name }));
@@ -209,13 +263,12 @@ export default function Home() {
   }, [documents, activeDocumentId]);
 
   const updateActiveDocumentData = useCallback((newJson: JsonValue, fromHistory = false) => {
-    if (!activeDocumentId) return; // Ensure activeDocumentId is used from state directly
+    if (!activeDocumentId) return; 
     setDocuments(prevDocs =>
       prevDocs.map(doc => {
         if (doc.id === activeDocumentId) {
           const newHistory = fromHistory ? doc.history : [...doc.history.slice(0, doc.currentHistoryIndex + 1), newJson];
           const newIndex = fromHistory ? doc.currentHistoryIndex : newHistory.length - 1;
-          // Cap history at 50 entries
           const cappedHistory = newHistory.length > 50 ? newHistory.slice(newHistory.length - 50) : newHistory;
           const cappedIndex = newIndex >= newHistory.length - cappedHistory.length ? newIndex - (newHistory.length - cappedHistory.length) : 0;
 
@@ -224,7 +277,7 @@ export default function Home() {
         return doc;
       })
     );
-  }, [activeDocumentId]); // Rely on activeDocumentId from state
+  }, [activeDocumentId]); 
 
   const handleJsonChange = (newJson: JsonValue) => { 
     updateActiveDocumentData(newJson);
@@ -331,7 +384,7 @@ export default function Home() {
   const getApiKey = useCallback(() => apiKey, [apiKey]);
   
   const handleApiKeySave = (newApiKey: string) => {
-    setApiKey(newApiKey); // This will trigger the useEffect to update apiKeyStatus in document
+    setApiKey(newApiKey); 
     if (newApiKey) {
         localStorage.setItem(LOCAL_STORAGE_KEYS.API_KEY, newApiKey);
     } else {
@@ -358,12 +411,10 @@ export default function Home() {
   const handleDeleteDocument = (docId: string) => {
     setDocuments(prevDocs => {
       const remainingDocs = prevDocs.filter(doc => doc.id !== docId);
-      // Also remove from local storage
       try {
         localStorage.removeItem(`${LOCAL_STORAGE_KEYS.DOCUMENT_PREFIX}${docId}`);
       } catch (error) {
         console.error("Error removing document from localStorage:", error);
-        // Toast not essential here as main state is updated
       }
 
       if (remainingDocs.length === 0) {
@@ -408,6 +459,8 @@ export default function Home() {
         onOpenEditEntireJsonDialog={() => setIsEditEntireJsonDialogOpen(true)}
         onOpenQuickImportDialog={() => setIsQuickImportDialogOpen(true)}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       <div className="flex flex-1 overflow-hidden">
         <DocumentSidebar
@@ -422,14 +475,13 @@ export default function Home() {
         />
         <ScrollArea className="flex-grow">
           <main className="container mx-auto p-4">
-            {!activeDocument && documents.length > 0 && ( // Show if no active doc but docs exist (e.g. after delete all and new one created)
+            {!activeDocument && documents.length > 0 && ( 
               <Card className="my-4 shadow-lg">
                 <CardHeader><CardTitle>No Document Selected</CardTitle></CardHeader>
                 <CardContent><p>Please select a document from the sidebar, or add a new one to begin.</p></CardContent>
               </Card>
             )}
-            {/* Initial Welcome Message - show only if it's the very first load and only welcome doc exists */}
-            {documents.length === 1 && documents[0].name === "Welcome Document" && !localStorage.getItem(LOCAL_STORAGE_KEYS.DOCUMENTS_META)?.includes('Quick Import') && (
+            {documents.length === 1 && documents[0].name === "Welcome Document" && activeDocumentId === documents[0].id && (
               <Card className="mt-8 mb-4">
                 <CardHeader>
                   <CardTitle className="text-lg text-primary">Welcome to JSON Canvas!</CardTitle>
@@ -522,13 +574,13 @@ export default function Home() {
                 </Card>
               )
             )}
-            {activeDocument && !currentJsonData && ( // Document exists but its data is null/undefined
+            {activeDocument && !currentJsonData && typeof currentJsonData !== 'object' && ( 
                  <Card className="my-4 shadow-lg">
                     <CardHeader><CardTitle className="text-xl font-semibold text-primary">{activeDocument.name}</CardTitle></CardHeader>
-                    <CardContent><p className="text-muted-foreground">This document's data is empty or invalid.</p></CardContent>
+                    <CardContent><p className="text-muted-foreground">This document's data is empty, null, or not an object/array. Consider importing new data or editing it as raw JSON.</p></CardContent>
                 </Card>
             )}
-            {documents.length === 0 && isClient && ( // Truly no documents, after initial load attempt
+            {documents.length === 0 && isClient && ( 
                 <Card className="my-4 shadow-lg">
                   <CardHeader><CardTitle>No Documents</CardTitle></CardHeader>
                   <CardContent><p>Create or import a document using the sidebar to get started.</p></CardContent>
@@ -537,6 +589,9 @@ export default function Home() {
           </main>
         </ScrollArea>
       </div>
+      <footer className="text-center text-xs text-muted-foreground p-4 border-t dark:border-border">
+        Machine King Labs
+      </footer>
       <ApiKeyDialog
         open={isApiKeyDialogOpen}
         onOpenChange={setIsApiKeyDialogOpen}
