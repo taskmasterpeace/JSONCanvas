@@ -6,7 +6,8 @@ export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 
 export type JsonPath = (string | number)[];
 
-export type ExpansionTrigger = { type: 'expand' | 'collapse', timestamp: number } | null;
+// Updated ExpansionTrigger type
+export type ExpansionTrigger = { type: 'expand' | 'collapse', path: JsonPath | null, timestamp: number } | null;
 
 export interface EditableJsonNodeProps {
   path: JsonPath;
@@ -23,4 +24,3 @@ export interface EditableJsonNodeProps {
   searchTerm?: string; // For highlighting search matches
   onSetHoveredPath?: (path: JsonPath | null) => void; // For breadcrumbs
 }
-
