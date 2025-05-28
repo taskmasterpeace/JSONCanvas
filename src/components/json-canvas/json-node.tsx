@@ -111,11 +111,11 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
  const isEffectivelyExpanded = useMemo(() => {
     if (!(typeof value === 'object' && value !== null)) {
-      return false; // Primitives are never "expanded" in terms of showing children
+      return false; 
     }
     const triggerPath = expansionTrigger?.path;
     if (expansionTrigger) {
-      if (triggerPath === null || (Array.isArray(triggerPath) && triggerPath.length === 0 && path.length === 0) ) { // Global trigger, or specifically root for root
+      if (triggerPath === null || (Array.isArray(triggerPath) && triggerPath.length === 0 && path.length === 0) ) { 
          return expansionTrigger.type === 'expand';
       }
       if (Array.isArray(triggerPath) &&
@@ -328,24 +328,32 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   }, [newPropertyValue, newPropertyType, onAddItem, path, toast]);
 
   const isPrimitiveOrNull = typeof value !== 'object' || value === null;
-
+  
+  // True if this node is a key-primitive pair rendered in a stacked way inside a top-level card.
   const isStackedDisplayContext =
     isInCardViewTopLevel &&
     nodeKey !== undefined &&
     isPrimitiveOrNull;
 
+  // True if this node is an object/array summary rendered inside a top-level card.
   const isSummaryDisplayContext =
     isInCardViewTopLevel &&
     nodeKey !== undefined &&
     typeof value === 'object' &&
     value !== null;
 
+  // True if this node is a primitive (e.g. string array item) rendered directly inside a top-level card (no key).
+  const isDirectPrimitiveInCardContext = 
+    isInCardViewTopLevel &&
+    nodeKey === undefined &&
+    isPrimitiveOrNull;
+
 
   const renderValue = () => {
     if (isEditing) {
       const commonInputClass = "font-mono text-sm";
-      const stackedOrFullWidthClass = isStackedDisplayContext ? "w-full mt-1" : "w-auto";
-      const stackedOrFullWidthTextAreaClass = isStackedDisplayContext ? "w-full mt-1" : "min-w-[200px]";
+      const stackedOrFullWidthClass = isStackedDisplayContext || isDirectPrimitiveInCardContext ? "w-full mt-1" : "w-auto";
+      const stackedOrFullWidthTextAreaClass = isStackedDisplayContext || isDirectPrimitiveInCardContext ? "w-full mt-1" : "min-w-[200px]";
 
       let originalValueDisplay = null;
       if (originalValueForEdit !== null) {
@@ -358,7 +366,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
       if (typeof value === 'string') {
         return (
-          <div className={cn(isStackedDisplayContext ? "w-full" : "")}>
+          <div className={cn(isStackedDisplayContext || isDirectPrimitiveInCardContext ? "w-full" : "")}>
             {originalValueDisplay}
             <Textarea ref={valueStringInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, "min-h-[60px]", stackedOrFullWidthTextAreaClass)} />
           </div>
@@ -366,16 +374,15 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       }
       if (typeof value === 'number') {
         return (
-           <div className={cn(isStackedDisplayContext ? "w-full" : "")}>
+           <div className={cn(isStackedDisplayContext || isDirectPrimitiveInCardContext ? "w-full" : "")}>
             {originalValueDisplay}
             <Input ref={valueNumericInputRef} type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, stackedOrFullWidthClass)} />
           </div>
         );
       }
       // For boolean, null, or other non-string/non-number primitives
-      // We use a textarea to allow for `true`, `false`, `null` or even malformed JSON for correction
       return (
-        <div className={cn(isStackedDisplayContext ? "w-full" : "")}>
+        <div className={cn(isStackedDisplayContext || isDirectPrimitiveInCardContext ? "w-full" : "")}>
           {originalValueDisplay}
           <Textarea ref={valueGenericInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, "min-h-[60px]", stackedOrFullWidthTextAreaClass)} placeholder="Enter valid JSON (e.g. true, null, or {...})"/>
         </div>
@@ -387,31 +394,37 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
     if (typeof value === 'string') {
        valueStringForSearch = value;
-      if (showMarkdownPreview && value.length > 50 && !isStackedDisplayContext) { // Don't use prose in stacked cards
+      if (showMarkdownPreview && value.length > 50 && !isStackedDisplayContext && !isDirectPrimitiveInCardContext) {
         displayValueNode = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1 w-full" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
       } else {
-        const Tag = isStackedDisplayContext ? 'div' : 'span';
-        displayValueNode = <Tag className={cn("font-mono text-sm text-green-600 dark:text-green-400 break-words min-w-0", isStackedDisplayContext ? "w-full pt-0.5" : "")}>"{getHighlightedText(value, searchTerm || "")}"</Tag>;
+        const Tag = isStackedDisplayContext || isDirectPrimitiveInCardContext ? 'div' : 'span';
+        const textContent = getHighlightedText(value, searchTerm || "");
+        
+        if (isDirectPrimitiveInCardContext) { // Array item string in a card
+            displayValueNode = <Tag className={cn("font-normal text-sm text-card-foreground break-words w-full pt-0.5", isInCardViewTopLevel && "cursor-pointer hover:bg-muted/50 p-1 rounded-sm")} onClick={() => {setOriginalValueForEdit(value as JsonPrimitive); setEditValue(value); setIsEditing(true);}}>{textContent}</Tag>;
+        } else { // Regular string (key-value or in tree)
+            displayValueNode = <Tag className={cn("font-mono text-sm text-green-600 dark:text-green-400 break-words min-w-0", isStackedDisplayContext ? "w-full pt-0.5" : "")}>"{textContent}"</Tag>;
+        }
       }
     } else if (typeof value === 'number') {
       valueStringForSearch = String(value);
-      const Tag = isStackedDisplayContext ? 'div' : 'span';
-      displayValueNode = <Tag className={cn("font-mono text-sm text-blue-600 dark:text-blue-400", isStackedDisplayContext ? "w-full pt-0.5" : "")}>{getHighlightedText(String(value), searchTerm || "")}</Tag>;
+      const Tag = isStackedDisplayContext || isDirectPrimitiveInCardContext ? 'div' : 'span';
+      displayValueNode = <Tag className={cn("font-mono text-sm text-blue-600 dark:text-blue-400", (isStackedDisplayContext || isDirectPrimitiveInCardContext) ? "w-full pt-0.5" : "")}>{getHighlightedText(String(value), searchTerm || "")}</Tag>;
     } else if (typeof value === 'boolean') {
       valueStringForSearch = String(value);
-      const Tag = isStackedDisplayContext ? 'div' : 'span'; // Checkbox might not fit well when stacked directly
-      displayValueNode = isStackedDisplayContext ?
+      const Tag = isStackedDisplayContext || isDirectPrimitiveInCardContext ? 'div' : 'span';
+      displayValueNode = isStackedDisplayContext || isDirectPrimitiveInCardContext ?
         <Tag className={cn("font-mono text-sm text-purple-600 dark:text-purple-400", "w-full pt-0.5")}>{String(value)}</Tag>
         : <Checkbox checked={value} onCheckedChange={handleBooleanChange} className="ml-1" aria-label={`Value ${value}, toggle boolean`}/>;
     } else if (value === null) {
       valueStringForSearch = "null";
-      const Tag = isStackedDisplayContext ? 'div' : 'span';
-      displayValueNode = <Tag className={cn("font-mono text-sm text-gray-500 dark:text-gray-400", isStackedDisplayContext ? "w-full pt-0.5" : "")}>{getHighlightedText("null", searchTerm || "")}</Tag>;
+      const Tag = isStackedDisplayContext || isDirectPrimitiveInCardContext ? 'div' : 'span';
+      displayValueNode = <Tag className={cn("font-mono text-sm text-gray-500 dark:text-gray-400", (isStackedDisplayContext || isDirectPrimitiveInCardContext) ? "w-full pt-0.5" : "")}>{getHighlightedText("null", searchTerm || "")}</Tag>;
     } else {
-       return null; // Should not be reached for primitives, object/array summary handled below
+       return null; 
     }
 
-    return isStackedDisplayContext ? displayValueNode : <span data-searchable-value={valueStringForSearch}>{displayValueNode}</span>;
+    return (isStackedDisplayContext || isDirectPrimitiveInCardContext) ? displayValueNode : <span data-searchable-value={valueStringForSearch}>{displayValueNode}</span>;
   };
 
   const typeLabel = Array.isArray(value) ? 'Array' : typeof value === 'object' && value !== null ? 'Object' : '';
@@ -427,7 +440,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   ];
 
   const getButtonAnimationClasses = useCallback(() => {
-    if (isStackedDisplayContext) return ""; // No animation for persistent buttons in cards
+    if (isStackedDisplayContext || isDirectPrimitiveInCardContext) return ""; // No animation for persistent buttons in cards
     const delayClass = delayClasses[buttonRenderIndex.current] || delayClasses[delayClasses.length -1];
     buttonRenderIndex.current++;
     return `
@@ -436,7 +449,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       group-focus-within/node-item-header:opacity-100 group-focus-within/node-item-header:translate-x-0
       transition-all ease-out duration-200 ${delayClass}
     `;
-  }, [isStackedDisplayContext]);
+  }, [isStackedDisplayContext, isDirectPrimitiveInCardContext]);
 
 
   const displayKey = nodeKey !== undefined ? getHighlightedText(nodeKey, searchTerm || "") : '';
@@ -446,22 +459,22 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
     <TooltipProvider delayDuration={300}>
       <div
         className={cn(
-            (depth > 0 || (depth === 0 && nodeKey === undefined && !isInCardViewTopLevel)) && getNestingLevelClasses(depth)
+            (depth > 0 || (depth === 0 && nodeKey === undefined && !isInCardViewTopLevel)) && !isDirectPrimitiveInCardContext && getNestingLevelClasses(depth)
           )}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
         <div className={cn(
           "group/node-item-header min-h-[32px] w-full",
-           isStackedDisplayContext
-            ? "flex flex-col items-start py-1"
-            : "flex items-center space-x-2"
+           (isStackedDisplayContext || isDirectPrimitiveInCardContext)
+            ? "flex flex-col items-start py-1" 
+            : "flex items-center" 
         )}>
           <div className={cn(
               "flex items-center w-full",
               isStackedDisplayContext && "mb-0.5"
             )}>
-            {(typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext) && (
+            {(typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext && !isDirectPrimitiveInCardContext) && (
               <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center flex-shrink-0" aria-label={isEffectivelyExpanded ? "Collapse" : "Expand"}>
                 {isEffectivelyExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               </Button>
@@ -486,9 +499,10 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                   className={cn(
                     "font-semibold text-sm group-hover/node-item:text-accent py-1 flex-shrink-0",
                      isStackedDisplayContext ? "text-card-foreground cursor-pointer" : "text-primary cursor-pointer",
-                     isSummaryDisplayContext && "text-primary cursor-default"
+                     isSummaryDisplayContext && "text-primary cursor-default",
+                     isDirectPrimitiveInCardContext && "hidden" // Hide key span if it's a direct primitive in card (no key)
                   )}
-                  onClick={() => { if (nodeKey && onRenameKey && !(isSummaryDisplayContext || isStackedDisplayContext && !onRenameKey)) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } else if (isStackedDisplayContext && nodeKey && onRenameKey) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } }}
+                  onClick={() => { if (nodeKey && onRenameKey && !(isSummaryDisplayContext || (isStackedDisplayContext && !onRenameKey) || isDirectPrimitiveInCardContext)) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } else if (isStackedDisplayContext && nodeKey && onRenameKey) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } }}
                 >
                   {displayKey}:
                 </span>
@@ -496,7 +510,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
             )}
             
             <div className="flex items-center flex-grow min-w-0">
-                {typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext && (
+                {typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext && !isDirectPrimitiveInCardContext && (
                    <span className="text-xs text-muted-foreground ml-1">
                       {typeLabel}
                       {isEffectivelyExpanded && ((Array.isArray(value) && value.length === 0) || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) ? ' (empty)' : ''}
@@ -504,17 +518,17 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                       {!isEffectivelyExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
                    </span>
                 )}
-                {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey === undefined && !isEditing && renderValue()}
-                {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey !== undefined && !isEditing && (
+                {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey === undefined && !isEditing && !isDirectPrimitiveInCardContext && renderValue()}
+                {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey !== undefined && !isEditing && !isDirectPrimitiveInCardContext && (
                     <span className="ml-1 min-w-0 break-words">{renderValue()}</span>
                 )}
             </div>
 
             <div className={cn(
               "flex items-center space-x-1 ml-auto pl-2 flex-shrink-0",
-              !isStackedDisplayContext && "opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100"
+              !(isStackedDisplayContext || isDirectPrimitiveInCardContext) && "opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100"
               )}>
-              {isEditing && !isStackedDisplayContext ? (
+              {isEditing && !(isStackedDisplayContext || isDirectPrimitiveInCardContext) ? (
                 <>
                   <div className={getButtonAnimationClasses()}>
                     <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1"><CheckIcon size={16} /></Button></TooltipTrigger><TooltipContent><p>Save Value</p></TooltipContent></Tooltip>
@@ -525,12 +539,12 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 </>
               ) : null}
 
-              {!isEditing && typeof value !== 'object' && value !== null && typeof value !== 'boolean' && !isSummaryDisplayContext && (
+              {!isEditing && typeof value !== 'object' && value !== null && typeof value !== 'boolean' && !isSummaryDisplayContext && !(isDirectPrimitiveInCardContext && typeof value === 'string') && ( // Don't show edit icon if string in card (clickable text)
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setOriginalValueForEdit(value as JsonPrimitive); setEditValue(typeof value === 'string' ? value : JSON.stringify(value)); setIsEditing(true);}} className="h-6 w-6 p-1"><Edit3 size={16} /></Button></TooltipTrigger><TooltipContent><p>Edit Value</p></TooltipContent></Tooltip>
                 </div>
               )}
-               {nodeKey !== undefined && onRenameKey && !isSummaryDisplayContext && !isStackedDisplayContext && (
+               {nodeKey !== undefined && onRenameKey && !isSummaryDisplayContext && !isStackedDisplayContext && !isDirectPrimitiveInCardContext && (
                   <div className={getButtonAnimationClasses()}>
                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setNewKeyName(nodeKey || ''); setIsEditingKey(true); }} className="h-6 w-6 p-1"><ALargeSmall size={16}/></Button></TooltipTrigger><TooltipContent><p>Rename Key</p></TooltipContent></Tooltip>
                   </div>
@@ -542,7 +556,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
               )}
               {typeof value === 'string' && !isSummaryDisplayContext && (
                 <>
-                  {!isStackedDisplayContext && ( // Markdown preview not ideal for stacked display
+                  {!(isStackedDisplayContext || isDirectPrimitiveInCardContext) && ( 
                     <div className={getButtonAnimationClasses()}>
                       <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1"><MessageSquare size={16} /></Button></TooltipTrigger><TooltipContent><p>{showMarkdownPreview ? "Show Raw Text" : "Preview Markdown (for long text)"}</p></TooltipContent></Tooltip>
                     </div>
@@ -566,7 +580,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
             </div>
           </div>
 
-          {isStackedDisplayContext && (
+          {(isStackedDisplayContext || isDirectPrimitiveInCardContext) && (
             <div className="w-full pl-1 mt-0.5">
               {isEditing ? (
                  renderValue()
@@ -636,7 +650,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
         )}
 
 
-        {isEffectivelyExpanded && typeof value === 'object' && value !== null && !isSummaryDisplayContext && (
+        {isEffectivelyExpanded && typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isDirectPrimitiveInCardContext && (
           <div className={cn("pl-0", depth > 0 && !isInCardViewTopLevel && "ml-0")}>
             {Array.isArray(value)
               ? value.map((item, index) => (
