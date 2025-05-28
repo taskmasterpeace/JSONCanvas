@@ -4,10 +4,10 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, AlertTriangle } from 'lucide-react'; 
+import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, AlertTriangle, LayoutDashboard } from 'lucide-react'; 
 
 interface HeaderProps {
-  onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onImport: (event: React.ChangeEvent<HTMLInputElement>) => void; // For importing a file to a new document
   onExport: () => void;
   onUndo: () => void;
   canUndo: boolean;
@@ -16,6 +16,7 @@ interface HeaderProps {
   onOpenApiKeyDialog: () => void;
   onOpenEditEntireJsonDialog: () => void;
   onOpenQuickImportDialog: () => void; 
+  onToggleSidebar: () => void;
 }
 
 export function Header({
@@ -27,7 +28,8 @@ export function Header({
   canRedo,
   onOpenApiKeyDialog,
   onOpenEditEntireJsonDialog,
-  onOpenQuickImportDialog, 
+  onOpenQuickImportDialog,
+  onToggleSidebar,
 }: HeaderProps) {
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -36,6 +38,14 @@ export function Header({
       <header className="bg-card border-b border-border p-3 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={onToggleSidebar} className="mr-2">
+                  <LayoutDashboard className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Toggle Document Sidebar</p></TooltipContent>
+            </Tooltip>
              <svg
                 role="img"
                 viewBox="0 0 24 24"
@@ -54,7 +64,7 @@ export function Header({
                   <ClipboardPaste className="h-5 w-5" /> 
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Quick Import (Paste Text & AI Convert)</p></TooltipContent>
+              <TooltipContent><p>Quick Import to New Document (Paste Text)</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -63,7 +73,7 @@ export function Header({
                   <input type="file" accept=".json,application/json" ref={importInputRef} onChange={onImport} className="hidden" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Import JSON File</p></TooltipContent>
+              <TooltipContent><p>Import JSON File to New Document</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -71,7 +81,7 @@ export function Header({
                   <FileDown className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Export JSON File</p></TooltipContent>
+              <TooltipContent><p>Export Active Document</p></TooltipContent>
             </Tooltip>
              <Tooltip>
               <TooltipTrigger asChild>
@@ -79,7 +89,7 @@ export function Header({
                   <FileJson2 className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Edit Entire JSON (Raw + AI Fix)</p></TooltipContent>
+              <TooltipContent><p>Edit Entire Active Document (Raw + AI Fix)</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -87,7 +97,7 @@ export function Header({
                   <Undo2 className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Undo (Ctrl+Z)</p></TooltipContent>
+              <TooltipContent><p>Undo (Ctrl+Z) in Active Document</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -95,7 +105,7 @@ export function Header({
                   <Redo2 className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Redo (Ctrl+Y)</p></TooltipContent>
+              <TooltipContent><p>Redo (Ctrl+Y) in Active Document</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -131,5 +141,3 @@ export function Header({
     </TooltipProvider>
   );
 }
-
-    

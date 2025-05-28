@@ -22,7 +22,7 @@ import { Loader2, Zap } from 'lucide-react';
 interface QuickImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport: (newJson: JsonValue) => void;
+  onImport: (newJson: JsonValue, notes?: string) => void; // Modified to pass notes
   getApiKey: () => string | null;
 }
 
@@ -53,12 +53,7 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
       
       try {
         const parsedJson = JSON.parse(result.generatedJson);
-        onImport(parsedJson);
-        let description = 'Text successfully converted to JSON by AI.';
-        if (result.notes) {
-            description += ` AI Notes: ${result.notes}`;
-        }
-        toast({ title: 'Import Successful', description });
+        onImport(parsedJson, result.notes); // Pass notes to parent
         onOpenChange(false);
         setRawText('');
         setAiInstructions('');
@@ -78,9 +73,9 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isLoading) onOpenChange(isOpen); }}>
       <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col bg-card">
         <DialogHeader>
-          <DialogTitle>Quick Import with AI</DialogTitle>
+          <DialogTitle>Quick Import to New Document</DialogTitle>
           <DialogDescription>
-            Paste any text (e.g., CSV, lists, messy notes, partial JSON) and AI will try to convert it into structured JSON.
+            Paste any text (e.g., CSV, lists, messy notes, partial JSON) and AI will try to convert it into structured JSON for a new document.
             You can provide optional instructions to guide the AI.
           </DialogDescription>
         </DialogHeader>
@@ -121,4 +116,3 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
     </Dialog>
   );
 }
-

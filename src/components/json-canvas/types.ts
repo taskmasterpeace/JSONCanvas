@@ -6,23 +6,29 @@ export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 
 export type JsonPath = (string | number)[];
 
-// Updated ExpansionTrigger type
 export type ExpansionTrigger = { type: 'expand' | 'collapse', path: JsonPath | null, timestamp: number } | null;
 
 export interface EditableJsonNodeProps {
   path: JsonPath;
   value: JsonValue;
-  nodeKey?: string; // Only for object properties, or a title for the root node
+  nodeKey?: string; 
   onUpdate: (path: JsonPath, newValue: JsonValue) => void;
   onDelete: (path: JsonPath, keyOrIndex?: string | number) => void;
-  onAddProperty?: (path: JsonPath, key: string, value: JsonValue) => void; // For objects
-  onAddItem?: (path: JsonPath, value: JsonValue) => void; // For arrays
-  onRenameKey?: (path: JsonPath, oldKey: string, newKey: string) => void; // For object keys
+  onAddProperty?: (path: JsonPath, key: string, value: JsonValue) => void; 
+  onAddItem?: (path: JsonPath, value: JsonValue) => void; 
+  onRenameKey?: (path: JsonPath, oldKey: string, newKey: string) => void; 
   depth: number;
   getApiKey: () => string | null;
   expansionTrigger?: ExpansionTrigger;
-  searchTerm?: string; // For highlighting search matches
-  onSetHoveredPath?: (path: JsonPath | null) => void; // For breadcrumbs
-  isInCardViewTopLevel?: boolean; // New prop to indicate if the node is the top-level content of a card in card view
+  searchTerm?: string; 
+  onSetHoveredPath?: (path: JsonPath | null) => void; 
+  isInCardViewTopLevel?: boolean; 
 }
 
+export interface Document {
+  id: string;
+  name: string;
+  data: JsonValue;
+  history: JsonValue[];
+  currentHistoryIndex: number;
+}
