@@ -108,13 +108,14 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
   const { toast } = useToast();
   
-  // Determine effective expansion state
   const isEffectivelyExpanded = useMemo(() => {
     if (typeof value === 'object' && value !== null && expansionTrigger) {
-      return expansionTrigger.type === 'expand';
+        if (expansionTrigger.path === null || expansionTrigger.path.every((pVal, i) => path[i] === pVal) ) {
+            return expansionTrigger.type === 'expand';
+        }
     }
     return isLocallyExpanded;
-  }, [expansionTrigger, value, isLocallyExpanded]);
+  }, [expansionTrigger, path, value, isLocallyExpanded]);
 
 
   const toggleExpansion = useCallback(() => {
@@ -320,14 +321,22 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
 
   const renderValue = () => {
+    // This is the context for a key-value pair where value is primitive, shown in a card.
+    const isStackedCardPrimitive = depth === 0 && nodeKey !== undefined && isPrimitiveOrNull;
+
     if (isEditing) {
+      const commonInputClass = "font-mono text-sm";
+      const stackedOrFullWidthClass = isStackedCardPrimitive ? "w-full mt-1" : "w-auto";
+      const stackedOrFullWidthTextAreaClass = isStackedCardPrimitive ? "w-full mt-1" : "min-w-[200px]";
+
       if (typeof value === 'string') {
-        return <Textarea ref={valueStringInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" />;
+        return <Textarea ref={valueStringInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, "min-h-[60px]", stackedOrFullWidthTextAreaClass)} />;
       }
       if (typeof value === 'number') {
-        return <Input ref={valueNumericInputRef} type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full" />;
+        return <Input ref={valueNumericInputRef} type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, stackedOrFullWidthClass)} />;
       }
-      return <Textarea ref={valueGenericInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className="font-mono text-sm w-full min-h-[60px]" placeholder="Enter valid JSON (e.g. true, null, or {...})"/>;
+      // For boolean, null, or direct JSON editing for objects/arrays (though less common now with structured editing)
+      return <Textarea ref={valueGenericInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, "min-h-[60px]", stackedOrFullWidthTextAreaClass)} placeholder="Enter valid JSON (e.g. true, null, or {...})"/>;
     }
 
     let displayValue: React.ReactNode;
@@ -336,9 +345,10 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
     if (typeof value === 'string') {
        valueStringForSearch = value;
       if (showMarkdownPreview && value.length > 50) { 
-        displayValue = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
+        displayValue = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1 w-full" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
       } else {
-        displayValue = <span className="font-mono text-sm text-green-600 dark:text-green-400 break-words">"{getHighlightedText(value, searchTerm || "")}"</span>;
+        const Tag = isStackedCardPrimitive ? 'div' : 'span';
+        displayValue = <Tag className={cn("font-mono text-sm text-green-600 dark:text-green-400 break-words", isStackedCardPrimitive ? "w-full" : "min-w-0")}>"{getHighlightedText(value, searchTerm || "")}"</Tag>;
       }
     } else if (typeof value === 'number') {
       valueStringForSearch = String(value);
@@ -350,10 +360,14 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       valueStringForSearch = "null";
       displayValue = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{getHighlightedText("null", searchTerm || "")}</span>;
     } else {
+       // This case should ideally not be hit if isPrimitiveOrNull is true.
+       // If value is an object/array, it's handled by recursive rendering, not renderValue().
        return null; 
     }
     
-    return <span data-searchable-value={valueStringForSearch}>{displayValue}</span>;
+    // If it's a stacked card primitive, the value itself should be returned.
+    // If not (tree view or array item in card), wrap with search data attribute.
+    return isStackedCardPrimitive ? displayValue : <span data-searchable-value={valueStringForSearch}>{displayValue}</span>;
   };
 
   const typeLabel = Array.isArray(value) ? 'Array' : typeof value === 'object' && value !== null ? 'Object' : '';
@@ -383,6 +397,9 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const isPrimitiveOrNull = typeof value !== 'object' || value === null;
   const displayKey = nodeKey !== undefined ? getHighlightedText(nodeKey, searchTerm || "") : '';
 
+  // Determine if we are in the special "stacked card primitive" layout
+  const isStackedCardPrimitiveContext = depth === 0 && nodeKey !== undefined && isPrimitiveOrNull;
+
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -391,170 +408,127 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className="flex items-center space-x-2 group/node-item-header min-h-[32px]">
-          {(typeof value === 'object' && value !== null) && (
-            <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center" aria-label={isEffectivelyExpanded ? "Collapse" : "Expand"}>
-              {isEffectivelyExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </Button>
-          )}
+        <div className={cn(
+          "group/node-item-header min-h-[32px] w-full",
+           isStackedCardPrimitiveContext
+            ? "flex flex-col items-start py-1" // Stack key and value
+            : "flex items-center space-x-2"    // Default side-by-side
+        )}>
+          {/* Line 1: Key, Type Label (for objects/arrays), and Action Buttons */}
+          <div className="flex items-center w-full">
+            {(typeof value === 'object' && value !== null && !isStackedCardPrimitiveContext) && ( // Chevron only for objects/arrays not in stacked card primitive mode
+              <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center" aria-label={isEffectivelyExpanded ? "Collapse" : "Expand"}>
+                {isEffectivelyExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </Button>
+            )}
 
-          {nodeKey !== undefined && ( 
-            isEditingKey ? (
-              <div className="flex items-center">
-                <Input 
-                  ref={keyInputRef} 
-                  value={newKeyName} 
-                  onChange={(e) => setNewKeyName(e.target.value)} 
-                  className="h-7 font-mono text-sm" 
-                  onBlur={handleKeyUpdate} 
-                  onKeyDown={(e) => e.key === 'Enter' && handleKeyUpdate()} 
-                />
-                <Button variant="ghost" size="icon" onClick={handleKeyUpdate} className="h-6 w-6 p-1" aria-label="Save key"><CheckIcon size={16} /></Button>
-                <Button variant="ghost" size="icon" onClick={() => { setIsEditingKey(false); setNewKeyName(nodeKey || '');}} className="h-6 w-6 p-1" aria-label="Cancel rename"><XIcon size={16} /></Button>
-              </div>
-            ) : (
-              <span 
-                className="font-semibold text-sm text-primary group-hover/node-item:text-accent cursor-pointer py-1" 
-                onClick={() => { setNewKeyName(nodeKey || ''); setIsEditingKey(true); }}
-              >
-                {displayKey}:
-              </span>
-            )
-          )}
-          
-          {typeof value === 'object' && value !== null && ( 
-             <span className="text-xs text-muted-foreground ml-1">
-                {typeLabel}
-                {isEffectivelyExpanded && ((Array.isArray(value) && value.length === 0) || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) ? ' (empty)' : ''}
-                {!isEffectivelyExpanded && Array.isArray(value) ? ` [${value.length} item${value.length === 1 ? '' : 's'}]` : ''}
-                {!isEffectivelyExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
-             </span>
-          )}
-
-          {isPrimitiveOrNull ? renderValue() : null}
-
-
-          <div className="flex items-center space-x-1 ml-auto opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100">
-            {isEditing ? (
-              <>
-                <div className={getButtonAnimationClasses()}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1" aria-label="Save value"><CheckIcon size={16} /></Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Save Value</p></TooltipContent>
-                  </Tooltip>
+            {nodeKey !== undefined && ( 
+              isEditingKey ? (
+                <div className="flex items-center">
+                  <Input 
+                    ref={keyInputRef} 
+                    value={newKeyName} 
+                    onChange={(e) => setNewKeyName(e.target.value)} 
+                    className="h-7 font-mono text-sm" 
+                    onBlur={handleKeyUpdate} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleKeyUpdate()} 
+                  />
+                  <Button variant="ghost" size="icon" onClick={handleKeyUpdate} className="h-6 w-6 p-1" aria-label="Save key"><CheckIcon size={16} /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => { setIsEditingKey(false); setNewKeyName(nodeKey || '');}} className="h-6 w-6 p-1" aria-label="Cancel rename"><XIcon size={16} /></Button>
                 </div>
-                <div className={getButtonAnimationClasses()}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)} className="h-6 w-6 p-1" aria-label="Cancel edit value"><XIcon size={16} /></Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Cancel Edit</p></TooltipContent>
-                  </Tooltip>
-                </div>
-              </>
-            ) : (
-              typeof value !== 'object' && value !== null && typeof value !== 'boolean' && ( 
-                <div className={getButtonAnimationClasses()}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => { setEditValue(typeof value === 'string' ? value : JSON.stringify(value)); setIsEditing(true);}} 
-                        className="h-6 w-6 p-1" 
-                        aria-label="Edit value"
-                      >
-                        <Edit3 size={16} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Edit Value</p></TooltipContent>
-                  </Tooltip>
-                </div>
+              ) : (
+                <span 
+                  className="font-semibold text-sm text-primary group-hover/node-item:text-accent cursor-pointer py-1" 
+                  onClick={() => { setNewKeyName(nodeKey || ''); setIsEditingKey(true); }}
+                >
+                  {displayKey}:
+                </span>
               )
             )}
-             {nodeKey !== undefined && onRenameKey && ( 
-                <div className={getButtonAnimationClasses()}>
-                 <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => { setNewKeyName(nodeKey || ''); setIsEditingKey(true); }}
-                            className="h-6 w-6 p-1" 
-                            aria-label="Rename key"
-                        >
-                            <ALargeSmall size={16}/>
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Rename Key</p></TooltipContent>
-                  </Tooltip>
-                </div>
+            
+            {typeof value === 'object' && value !== null && ( 
+               <span className="text-xs text-muted-foreground ml-1">
+                  {typeLabel}
+                  {isEffectivelyExpanded && ((Array.isArray(value) && value.length === 0) || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) ? ' (empty)' : ''}
+                  {!isEffectivelyExpanded && Array.isArray(value) ? ` [${value.length} item${value.length === 1 ? '' : 's'}]` : ''}
+                  {!isEffectivelyExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
+               </span>
             )}
-            {(isPrimitiveOrNull || Array.isArray(value) || typeof value === 'object') && value !== undefined && ( 
-              <div className={getButtonAnimationClasses()}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={handleCopyToClipboard} className="h-6 w-6 p-1" aria-label="Copy value">
-                      <ClipboardCopy size={16} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Copy Value</p></TooltipContent>
-                </Tooltip>
-              </div>
-            )}
-            {typeof value === 'string' && (
-              <>
+
+            {/* Render primitive value inline IF NOT in stacked card mode AND nodeKey is NOT defined (e.g. array item) */}
+            {isPrimitiveOrNull && !isStackedCardPrimitiveContext && nodeKey === undefined && !isEditing && renderValue()}
+
+
+            {/* Action Buttons Container - always at the end of this first line */}
+            <div className="flex items-center space-x-1 ml-auto pl-2 opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100">
+              {isEditing && !isStackedCardPrimitiveContext ? ( // Save/Cancel for inline value edit (not stacked card)
+                <>
+                  <div className={getButtonAnimationClasses()}>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1"><CheckIcon size={16} /></Button></TooltipTrigger><TooltipContent><p>Save Value</p></TooltipContent></Tooltip>
+                  </div>
+                  <div className={getButtonAnimationClasses()}>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => setIsEditing(false)} className="h-6 w-6 p-1"><XIcon size={16} /></Button></TooltipTrigger><TooltipContent><p>Cancel Edit</p></TooltipContent></Tooltip>
+                  </div>
+                </>
+              ) : null}
+              
+              {!isEditing && typeof value !== 'object' && value !== null && typeof value !== 'boolean' && ( 
                 <div className={getButtonAnimationClasses()}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1" aria-label={showMarkdownPreview ? "Show raw text" : "Preview markdown"}>
-                        <MessageSquare size={16} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>{showMarkdownPreview ? "Show Raw Text" : "Preview Markdown (for long text)"}</p></TooltipContent>
-                  </Tooltip>
+                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setEditValue(typeof value === 'string' ? value : JSON.stringify(value)); setIsEditing(true);}} className="h-6 w-6 p-1"><Edit3 size={16} /></Button></TooltipTrigger><TooltipContent><p>Edit Value</p></TooltipContent></Tooltip>
                 </div>
+              )}
+               {nodeKey !== undefined && onRenameKey && !isStackedCardPrimitiveContext && ( // No rename key for primitives in cards visually, handled by card title
+                  <div className={getButtonAnimationClasses()}>
+                   <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setNewKeyName(nodeKey || ''); setIsEditingKey(true); }} className="h-6 w-6 p-1"><ALargeSmall size={16}/></Button></TooltipTrigger><TooltipContent><p>Rename Key</p></TooltipContent></Tooltip>
+                  </div>
+              )}
+              {(isPrimitiveOrNull || Array.isArray(value) || typeof value === 'object') && value !== undefined && ( 
                 <div className={getButtonAnimationClasses()}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => { setMarkdownModalContent(value); setIsMarkdownModalOpen(true);}} className="h-6 w-6 p-1" aria-label="Expand markdown editor">
-                        <Maximize2 size={16} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Expand Editor (Markdown)</p></TooltipContent>
-                  </Tooltip>
+                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={handleCopyToClipboard} className="h-6 w-6 p-1"><ClipboardCopy size={16} /></Button></TooltipTrigger><TooltipContent><p>Copy Value</p></TooltipContent></Tooltip>
                 </div>
+              )}
+              {typeof value === 'string' && (
+                <>
+                  <div className={getButtonAnimationClasses()}>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1"><MessageSquare size={16} /></Button></TooltipTrigger><TooltipContent><p>{showMarkdownPreview ? "Show Raw Text" : "Preview Markdown (for long text)"}</p></TooltipContent></Tooltip>
+                  </div>
+                  <div className={getButtonAnimationClasses()}>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setMarkdownModalContent(value); setIsMarkdownModalOpen(true);}} className="h-6 w-6 p-1"><Maximize2 size={16} /></Button></TooltipTrigger><TooltipContent><p>Expand Editor (Markdown)</p></TooltipContent></Tooltip>
+                  </div>
+                  <div className={getButtonAnimationClasses()}>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={handleSummarize} className="h-6 w-6 p-1"><Wand2 size={16} /></Button></TooltipTrigger><TooltipContent><p>Summarize (AI)</p></TooltipContent></Tooltip>
+                  </div>
+                  <div className={getButtonAnimationClasses()}>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => setIsEnhanceDialogOpen(true)} className="h-6 w-6 p-1"><Sparkles size={16} /></Button></TooltipTrigger><TooltipContent><p>Enhance (AI)</p></TooltipContent></Tooltip>
+                  </div>
+                </>
+              )}
+              {onDelete && ( 
                 <div className={getButtonAnimationClasses()}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={handleSummarize} className="h-6 w-6 p-1" aria-label="Summarize with AI"><Wand2 size={16} /></Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Summarize (AI)</p></TooltipContent>
-                  </Tooltip>
+                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => onDelete(path, nodeKey)} className="h-6 w-6 p-1 text-destructive hover:text-destructive-foreground hover:bg-destructive"><Trash2 size={16} /></Button></TooltipTrigger><TooltipContent><p>Delete {nodeKey !==undefined ? 'Property' : 'Item'}</p></TooltipContent></Tooltip>
                 </div>
-                <div className={getButtonAnimationClasses()}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => setIsEnhanceDialogOpen(true)} className="h-6 w-6 p-1" aria-label="Enhance with AI"><Sparkles size={16} /></Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Enhance (AI)</p></TooltipContent>
-                  </Tooltip>
-                </div>
-              </>
-            )}
-            {onDelete && ( 
-              <div className={getButtonAnimationClasses()}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(path, nodeKey)} className="h-6 w-6 p-1 text-destructive hover:text-destructive-foreground hover:bg-destructive" aria-label={`Delete ${nodeKey !==undefined ? 'property' : 'item'}`}><Trash2 size={16} /></Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Delete {nodeKey !==undefined ? 'Property' : 'Item'}</p></TooltipContent>
-                </Tooltip>
-              </div>
-            )}
+              )}
+            </div>
           </div>
+
+          {/* Line 2 (Conditional): Value display/editing for stacked card primitives */}
+          {isStackedCardPrimitiveContext && (
+            <div className="w-full pl-1 mt-0.5"> {/* Small indent for value under key */}
+              {isEditing ? ( /* renderValue already handles editing state and classes */
+                 renderValue()
+              ) : (
+                renderValue()
+              )}
+               {isEditing && ( // Save/Cancel for stacked card primitive value edit
+                <div className="flex space-x-2 mt-2">
+                  <Button variant="default" size="sm" onClick={handleValueUpdate} className="h-7">Save</Button>
+                  <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="h-7">Cancel</Button>
+                </div>
+              )}
+            </div>
+          )}
+           {/* Value for primitives in tree view (not stacked card) when a key is present */}
+           {isPrimitiveOrNull && !isStackedCardPrimitiveContext && nodeKey !== undefined && !isEditing && renderValue()}
         </div>
         
         {isAddingProperty && isEffectivelyExpanded && (
@@ -605,7 +579,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
             {Array.isArray(value)
               ? value.map((item, index) => (
                   <JsonNode
-                    key={`${path.join('-')}-item-${index}`}
+                    key={path.length > 0 ? `${path.join('.')}-item-${index}` : `item-${index}`}
                     path={[...path, index]}
                     value={item}
                     onUpdate={onUpdate}
@@ -622,7 +596,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 ))
               : Object.entries(value).map(([key, val]) => (
                   <JsonNode
-                    key={`${path.join('-')}-prop-${key}`} 
+                    key={path.length > 0 ? `${path.join('.')}-prop-${key}` : `prop-${key}`}
                     path={[...path, key]}
                     nodeKey={key}
                     value={val}
