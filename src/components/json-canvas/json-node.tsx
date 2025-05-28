@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { JsonValue, JsonPath, EditableJsonNodeProps, ExpansionTrigger } from './types';
+import type { JsonValue, JsonPath, EditableJsonNodeProps, ExpansionTrigger, JsonPrimitive } from './types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -81,7 +81,6 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   onSetHoveredPath,
   isInCardViewTopLevel = false,
 }) => {
-  // State for adding new properties/items must be declared before useEffects that use them
   const [isAddingProperty, setIsAddingProperty] = useState(false);
   const [newPropertyKey, setNewPropertyKey] = useState('');
   const [newPropertyValue, setNewPropertyValue] = useState('');
@@ -90,6 +89,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [editValue, setEditValue] = useState<string>(JSON.stringify(value));
+  const [originalValueForEdit, setOriginalValueForEdit] = useState<JsonPrimitive | null>(null);
   const [newKeyName, setNewKeyName] = useState<string>(nodeKey || '');
 
   const [isLocallyExpanded, setIsLocallyExpanded] = useState(true);
@@ -109,14 +109,14 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
   const { toast } = useToast();
 
-  const isEffectivelyExpanded = useMemo(() => {
+ const isEffectivelyExpanded = useMemo(() => {
     if (!(typeof value === 'object' && value !== null)) {
-      return isLocallyExpanded;
+      return false; // Primitives are never "expanded" in terms of showing children
     }
+    const triggerPath = expansionTrigger?.path;
     if (expansionTrigger) {
-      const triggerPath = expansionTrigger.path;
-      if (triggerPath === null) { // Global trigger
-        return expansionTrigger.type === 'expand';
+      if (triggerPath === null || (Array.isArray(triggerPath) && triggerPath.length === 0 && path.length === 0) ) { // Global trigger, or specifically root for root
+         return expansionTrigger.type === 'expand';
       }
       if (Array.isArray(triggerPath) &&
           path.length === triggerPath.length &&
@@ -140,7 +140,6 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
     if (nodeKey) setNewKeyName(nodeKey);
   }, [value, nodeKey]);
 
-  // Focus key input on edit
   useEffect(() => {
     if (isEditingKey && keyInputRef.current) {
       requestAnimationFrame(() => {
@@ -150,7 +149,6 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
     }
   }, [isEditingKey]);
 
-  // Focus value input on edit
   useEffect(() => {
     if (isEditing) {
       requestAnimationFrame(() => {
@@ -160,7 +158,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
         } else if (typeof value === 'number' && valueNumericInputRef.current) {
           valueNumericInputRef.current.focus();
           valueNumericInputRef.current.select();
-        } else if (valueGenericInputRef.current) {
+        } else if (valueGenericInputRef.current) { // for boolean/null or other JSON values
           valueGenericInputRef.current.focus();
           valueGenericInputRef.current.select();
         }
@@ -168,7 +166,6 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
     }
   }, [isEditing, value]);
 
-  // Focus new property/item input
   useEffect(() => {
     if (isAddingProperty) {
       requestAnimationFrame(() => {
@@ -198,11 +195,12 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
          if (editValue.toLowerCase() === 'null') parsedValue = null;
          else throw new Error("Invalid null string");
       }
-      else {
+      else { // Should not happen for primitives, but for safety if logic changes
         parsedValue = JSON.parse(editValue);
       }
       onUpdate(path, parsedValue);
       setIsEditing(false);
+      setOriginalValueForEdit(null);
       toast({ title: 'Value Updated' });
     } catch (error) {
       toast({ title: 'Error', description: 'Invalid JSON value. For strings, edit directly. For other types, ensure valid JSON format.', variant: 'destructive' });
@@ -216,7 +214,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       toast({title: "Key Renamed"});
     } else {
       setIsEditingKey(false);
-      if (newKeyName.trim() === nodeKey) return;
+      if (newKeyName.trim() === nodeKey) return; // No change
       if (!newKeyName.trim()) {
         toast({ title: 'Error', description: 'Key name cannot be empty.', variant: 'destructive' });
       }
@@ -259,7 +257,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const handleCopyToClipboard = useCallback(async () => {
     const valueToCopy = (typeof value === 'object' && value !== null) || typeof value === 'boolean'
         ? JSON.stringify(value, null, 2)
-        : String(value);
+        : String(value); // Covers string, number, null
     try {
       await navigator.clipboard.writeText(valueToCopy);
       toast({ title: 'Copied to clipboard!', description: `Value: "${valueToCopy.substring(0,70)}${valueToCopy.length > 70 ? '...' : ''}"` });
@@ -329,7 +327,6 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
     }
   }, [newPropertyValue, newPropertyType, onAddItem, path, toast]);
 
-
   const isPrimitiveOrNull = typeof value !== 'object' || value === null;
 
   const isStackedDisplayContext =
@@ -350,13 +347,39 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       const stackedOrFullWidthClass = isStackedDisplayContext ? "w-full mt-1" : "w-auto";
       const stackedOrFullWidthTextAreaClass = isStackedDisplayContext ? "w-full mt-1" : "min-w-[200px]";
 
+      let originalValueDisplay = null;
+      if (originalValueForEdit !== null) {
+        originalValueDisplay = (
+          <div className="text-xs text-muted-foreground mb-1">
+            Original: {typeof originalValueForEdit === 'string' ? `"${originalValueForEdit}"` : String(originalValueForEdit)}
+          </div>
+        );
+      }
+
       if (typeof value === 'string') {
-        return <Textarea ref={valueStringInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, "min-h-[60px]", stackedOrFullWidthTextAreaClass)} />;
+        return (
+          <div className={cn(isStackedDisplayContext ? "w-full" : "")}>
+            {originalValueDisplay}
+            <Textarea ref={valueStringInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, "min-h-[60px]", stackedOrFullWidthTextAreaClass)} />
+          </div>
+        );
       }
       if (typeof value === 'number') {
-        return <Input ref={valueNumericInputRef} type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, stackedOrFullWidthClass)} />;
+        return (
+           <div className={cn(isStackedDisplayContext ? "w-full" : "")}>
+            {originalValueDisplay}
+            <Input ref={valueNumericInputRef} type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, stackedOrFullWidthClass)} />
+          </div>
+        );
       }
-      return <Textarea ref={valueGenericInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, "min-h-[60px]", stackedOrFullWidthTextAreaClass)} placeholder="Enter valid JSON (e.g. true, null, or {...})"/>;
+      // For boolean, null, or other non-string/non-number primitives
+      // We use a textarea to allow for `true`, `false`, `null` or even malformed JSON for correction
+      return (
+        <div className={cn(isStackedDisplayContext ? "w-full" : "")}>
+          {originalValueDisplay}
+          <Textarea ref={valueGenericInputRef} value={editValue} onChange={(e) => setEditValue(e.target.value)} className={cn(commonInputClass, "min-h-[60px]", stackedOrFullWidthTextAreaClass)} placeholder="Enter valid JSON (e.g. true, null, or {...})"/>
+        </div>
+      );
     }
 
     let displayValueNode: React.ReactNode;
@@ -364,23 +387,28 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
     if (typeof value === 'string') {
        valueStringForSearch = value;
-      if (showMarkdownPreview && value.length > 50 && !isInCardViewTopLevel) {
+      if (showMarkdownPreview && value.length > 50 && !isStackedDisplayContext) { // Don't use prose in stacked cards
         displayValueNode = <div className="prose dark:prose-invert max-w-none p-2 border rounded-md bg-background/50 my-1 w-full" dangerouslySetInnerHTML={{ __html: marked(value) as string }} />;
       } else {
         const Tag = isStackedDisplayContext ? 'div' : 'span';
-        displayValueNode = <Tag className={cn("font-mono text-sm text-green-600 dark:text-green-400 break-words", isStackedDisplayContext ? "w-full min-w-0" : "min-w-0")}>"{getHighlightedText(value, searchTerm || "")}"</Tag>;
+        displayValueNode = <Tag className={cn("font-mono text-sm text-green-600 dark:text-green-400 break-words min-w-0", isStackedDisplayContext ? "w-full pt-0.5" : "")}>"{getHighlightedText(value, searchTerm || "")}"</Tag>;
       }
     } else if (typeof value === 'number') {
       valueStringForSearch = String(value);
-      displayValueNode = <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{getHighlightedText(String(value), searchTerm || "")}</span>;
+      const Tag = isStackedDisplayContext ? 'div' : 'span';
+      displayValueNode = <Tag className={cn("font-mono text-sm text-blue-600 dark:text-blue-400", isStackedDisplayContext ? "w-full pt-0.5" : "")}>{getHighlightedText(String(value), searchTerm || "")}</Tag>;
     } else if (typeof value === 'boolean') {
       valueStringForSearch = String(value);
-      displayValueNode = <Checkbox checked={value} onCheckedChange={handleBooleanChange} className="ml-1" aria-label={`Value ${value}, toggle boolean`}/>;
+      const Tag = isStackedDisplayContext ? 'div' : 'span'; // Checkbox might not fit well when stacked directly
+      displayValueNode = isStackedDisplayContext ?
+        <Tag className={cn("font-mono text-sm text-purple-600 dark:text-purple-400", "w-full pt-0.5")}>{String(value)}</Tag>
+        : <Checkbox checked={value} onCheckedChange={handleBooleanChange} className="ml-1" aria-label={`Value ${value}, toggle boolean`}/>;
     } else if (value === null) {
       valueStringForSearch = "null";
-      displayValueNode = <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{getHighlightedText("null", searchTerm || "")}</span>;
+      const Tag = isStackedDisplayContext ? 'div' : 'span';
+      displayValueNode = <Tag className={cn("font-mono text-sm text-gray-500 dark:text-gray-400", isStackedDisplayContext ? "w-full pt-0.5" : "")}>{getHighlightedText("null", searchTerm || "")}</Tag>;
     } else {
-       return null;
+       return null; // Should not be reached for primitives, object/array summary handled below
     }
 
     return isStackedDisplayContext ? displayValueNode : <span data-searchable-value={valueStringForSearch}>{displayValueNode}</span>;
@@ -399,6 +427,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   ];
 
   const getButtonAnimationClasses = useCallback(() => {
+    if (isStackedDisplayContext) return ""; // No animation for persistent buttons in cards
     const delayClass = delayClasses[buttonRenderIndex.current] || delayClasses[delayClasses.length -1];
     buttonRenderIndex.current++;
     return `
@@ -407,7 +436,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
       group-focus-within/node-item-header:opacity-100 group-focus-within/node-item-header:translate-x-0
       transition-all ease-out duration-200 ${delayClass}
     `;
-  }, []);
+  }, [isStackedDisplayContext]);
 
 
   const displayKey = nodeKey !== undefined ? getHighlightedText(nodeKey, searchTerm || "") : '';
@@ -425,15 +454,13 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
         <div className={cn(
           "group/node-item-header min-h-[32px] w-full",
            isStackedDisplayContext
-            ? "flex flex-col items-start py-1" 
-            : "flex items-center space-x-2"    // Default for tree view & summary display context
+            ? "flex flex-col items-start py-1"
+            : "flex items-center space-x-2"
         )}>
-          {/* Line 1: Key, Type Label (for objects/arrays), and Action Buttons */}
           <div className={cn(
               "flex items-center w-full",
-              isStackedDisplayContext && "mb-0.5" // Add a small margin if stacked
+              isStackedDisplayContext && "mb-0.5"
             )}>
-            {/* Chevron: Render if it's an object/array AND NOT a summary in a card view top level */}
             {(typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext) && (
               <Button variant="ghost" size="icon" onClick={toggleExpansion} className="h-6 w-6 p-1 self-center flex-shrink-0" aria-label={isEffectivelyExpanded ? "Collapse" : "Expand"}>
                 {isEffectivelyExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -458,18 +485,17 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                 <span
                   className={cn(
                     "font-semibold text-sm group-hover/node-item:text-accent py-1 flex-shrink-0",
-                     isStackedDisplayContext ? "text-card-foreground cursor-pointer" : "text-primary cursor-pointer", // Key is clickable in stacked card view too
-                     isSummaryDisplayContext && "text-primary cursor-default" // But not in summary card view
+                     isStackedDisplayContext ? "text-card-foreground cursor-pointer" : "text-primary cursor-pointer",
+                     isSummaryDisplayContext && "text-primary cursor-default"
                   )}
-                  onClick={() => { if (nodeKey && onRenameKey && !isSummaryDisplayContext) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } }}
+                  onClick={() => { if (nodeKey && onRenameKey && !(isSummaryDisplayContext || isStackedDisplayContext && !onRenameKey)) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } else if (isStackedDisplayContext && nodeKey && onRenameKey) { setNewKeyName(nodeKey || ''); setIsEditingKey(true); } }}
                 >
                   {displayKey}:
                 </span>
               )
             )}
             
-            <div className="flex items-center flex-grow min-w-0"> {/* This div will contain value and type label */}
-                {/* Type Label - shown for tree view items or array items if not summary/stacked context */}
+            <div className="flex items-center flex-grow min-w-0">
                 {typeof value === 'object' && value !== null && !isSummaryDisplayContext && !isStackedDisplayContext && (
                    <span className="text-xs text-muted-foreground ml-1">
                       {typeLabel}
@@ -478,47 +504,49 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                       {!isEffectivelyExpanded && typeof value === 'object' && !Array.isArray(value) && value !== null ? ` {${Object.keys(value).length} key${Object.keys(value).length === 1 ? '' : 's'}}` : ''}
                    </span>
                 )}
-
-                {/* Render primitive value inline if it's an array item in tree view OR a non-stacked primitive in tree view */}
                 {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey === undefined && !isEditing && renderValue()}
                 {isPrimitiveOrNull && !isStackedDisplayContext && !isSummaryDisplayContext && nodeKey !== undefined && !isEditing && (
-                    <span className="ml-1">{renderValue()}</span>
+                    <span className="ml-1 min-w-0 break-words">{renderValue()}</span>
                 )}
             </div>
 
-
-            <div className="flex items-center space-x-1 ml-auto pl-2 flex-shrink-0 opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100">
-              {isEditing && !isStackedDisplayContext ? ( // Don't show these specific save/cancel if stacked, handled below
+            <div className={cn(
+              "flex items-center space-x-1 ml-auto pl-2 flex-shrink-0",
+              !isStackedDisplayContext && "opacity-0 group-hover/node-item-header:opacity-100 group-focus-within/node-item-header:opacity-100 transition-opacity duration-100"
+              )}>
+              {isEditing && !isStackedDisplayContext ? (
                 <>
                   <div className={getButtonAnimationClasses()}>
                     <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={handleValueUpdate} className="h-6 w-6 p-1"><CheckIcon size={16} /></Button></TooltipTrigger><TooltipContent><p>Save Value</p></TooltipContent></Tooltip>
                   </div>
                   <div className={getButtonAnimationClasses()}>
-                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => setIsEditing(false)} className="h-6 w-6 p-1"><XIcon size={16} /></Button></TooltipTrigger><TooltipContent><p>Cancel Edit</p></TooltipContent></Tooltip>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => {setIsEditing(false); setOriginalValueForEdit(null);}} className="h-6 w-6 p-1"><XIcon size={16} /></Button></TooltipTrigger><TooltipContent><p>Cancel Edit</p></TooltipContent></Tooltip>
                   </div>
                 </>
               ) : null}
 
               {!isEditing && typeof value !== 'object' && value !== null && typeof value !== 'boolean' && !isSummaryDisplayContext && (
                 <div className={getButtonAnimationClasses()}>
-                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setEditValue(typeof value === 'string' ? value : JSON.stringify(value)); setIsEditing(true);}} className="h-6 w-6 p-1"><Edit3 size={16} /></Button></TooltipTrigger><TooltipContent><p>Edit Value</p></TooltipContent></Tooltip>
+                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setOriginalValueForEdit(value as JsonPrimitive); setEditValue(typeof value === 'string' ? value : JSON.stringify(value)); setIsEditing(true);}} className="h-6 w-6 p-1"><Edit3 size={16} /></Button></TooltipTrigger><TooltipContent><p>Edit Value</p></TooltipContent></Tooltip>
                 </div>
               )}
-               {nodeKey !== undefined && onRenameKey && !isSummaryDisplayContext && !isStackedDisplayContext && ( // Key rename button for tree items
+               {nodeKey !== undefined && onRenameKey && !isSummaryDisplayContext && !isStackedDisplayContext && (
                   <div className={getButtonAnimationClasses()}>
                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setNewKeyName(nodeKey || ''); setIsEditingKey(true); }} className="h-6 w-6 p-1"><ALargeSmall size={16}/></Button></TooltipTrigger><TooltipContent><p>Rename Key</p></TooltipContent></Tooltip>
                   </div>
               )}
-              {(isPrimitiveOrNull || (typeof value === 'object' && value !== null)) && ( // Copy always available
+              {(isPrimitiveOrNull || (typeof value === 'object' && value !== null)) && (
                 <div className={getButtonAnimationClasses()}>
                   <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={handleCopyToClipboard} className="h-6 w-6 p-1"><ClipboardCopy size={16} /></Button></TooltipTrigger><TooltipContent><p>Copy Value</p></TooltipContent></Tooltip>
                 </div>
               )}
               {typeof value === 'string' && !isSummaryDisplayContext && (
                 <>
-                  <div className={getButtonAnimationClasses()}>
-                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1"><MessageSquare size={16} /></Button></TooltipTrigger><TooltipContent><p>{showMarkdownPreview ? "Show Raw Text" : "Preview Markdown (for long text)"}</p></TooltipContent></Tooltip>
-                  </div>
+                  {!isStackedDisplayContext && ( // Markdown preview not ideal for stacked display
+                    <div className={getButtonAnimationClasses()}>
+                      <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => setShowMarkdownPreview(!showMarkdownPreview)} className="h-6 w-6 p-1"><MessageSquare size={16} /></Button></TooltipTrigger><TooltipContent><p>{showMarkdownPreview ? "Show Raw Text" : "Preview Markdown (for long text)"}</p></TooltipContent></Tooltip>
+                    </div>
+                  )}
                   <div className={getButtonAnimationClasses()}>
                     <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setMarkdownModalContent(value); setIsMarkdownModalOpen(true);}} className="h-6 w-6 p-1"><Maximize2 size={16} /></Button></TooltipTrigger><TooltipContent><p>Expand Editor (Markdown)</p></TooltipContent></Tooltip>
                   </div>
@@ -538,7 +566,6 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
             </div>
           </div>
 
-          {/* Stacked display for primitive value within a card */}
           {isStackedDisplayContext && (
             <div className="w-full pl-1 mt-0.5">
               {isEditing ? (
@@ -549,13 +576,12 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
                {isEditing && (
                 <div className="flex space-x-2 mt-2">
                   <Button variant="default" size="sm" onClick={handleValueUpdate} className="h-7">Save</Button>
-                  <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="h-7">Cancel</Button>
+                  <Button variant="outline" size="sm" onClick={() => {setIsEditing(false); setOriginalValueForEdit(null);}} className="h-7">Cancel</Button>
                 </div>
               )}
             </div>
           )}
 
-          {/* Summary display for object/array within a card */}
           {isSummaryDisplayContext && !isEditing && (
              <div className="w-full pl-1 mt-0.5">
                 <span className="font-mono text-sm text-muted-foreground">
@@ -611,7 +637,7 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
 
 
         {isEffectivelyExpanded && typeof value === 'object' && value !== null && !isSummaryDisplayContext && (
-          <div className={cn("pl-0", depth > 0 && "ml-0")}> {/* No extra margin-left for children if already nested (depth > 0) */}
+          <div className={cn("pl-0", depth > 0 && !isInCardViewTopLevel && "ml-0")}>
             {Array.isArray(value)
               ? value.map((item, index) => (
                   <JsonNode
