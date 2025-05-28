@@ -92,11 +92,11 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const [isMarkdownModalOpen, setIsMarkdownModalOpen] = useState(false);
   const [markdownModalContent, setMarkdownModalContent] = useState('');
 
-  // State for adding new properties/items
+  // State for adding new properties/items must be declared before useEffects that use them
+  const [isAddingProperty, setIsAddingProperty] = useState(false);
   const [newPropertyKey, setNewPropertyKey] = useState('');
   const [newPropertyValue, setNewPropertyValue] = useState('');
   const [newPropertyType, setNewPropertyType] = useState<'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'>('string');
-  const [isAddingProperty, setIsAddingProperty] = useState(false);
 
 
   const keyInputRef = useRef<HTMLInputElement>(null);
@@ -109,17 +109,36 @@ const JsonNodeComponent: React.FC<EditableJsonNodeProps> = ({
   const { toast } = useToast();
   
   const isEffectivelyExpanded = useMemo(() => {
-    if (typeof value === 'object' && value !== null && expansionTrigger) {
-        // Global trigger applies if path is null (root for section) or matches current path
-        if (expansionTrigger.path === null || (expansionTrigger.path.length === path.length && expansionTrigger.path.every((pVal, i) => path[i] === pVal)) ) {
-             // If the trigger is specific to a path, and we ARE that path, then use it.
-            // If the trigger is global (null path), it also applies.
-             return expansionTrigger.type === 'expand';
-        }
-        // If a global trigger exists but is for a DIFFERENT path, nodes should respect their local state
-        // or default to expanded if no local interaction has occurred yet.
-        // This handles cases where one section is collapsed globally, but another is expanded.
+    // If value is not an object/array, it cannot be expanded/collapsed in the traditional sense.
+    // Use local state which defaults to true but doesn't visually mean much for primitives.
+    if (!(typeof value === 'object' && value !== null)) {
+      return isLocallyExpanded;
     }
+    // If no global expansionTrigger is active, defer to the node's local state.
+    if (!expansionTrigger) {
+      return isLocallyExpanded;
+    }
+  
+    // At this point, value is an object/array and expansionTrigger is a non-null object.
+    const triggerPath = expansionTrigger.path;
+  
+    // Case 1: Global trigger (path is null) - applies to all expandable nodes.
+    if (triggerPath === null) {
+      return expansionTrigger.type === 'expand';
+    }
+  
+    // Case 2: Path-specific trigger.
+    // Ensure triggerPath is an array before accessing its length.
+    // This check prevents "Cannot read properties of undefined (reading 'length')"
+    // if triggerPath is unexpectedly undefined.
+    if (Array.isArray(triggerPath) &&
+        triggerPath.length === path.length &&
+        triggerPath.every((pVal, i) => path[i] === pVal)) {
+      return expansionTrigger.type === 'expand';
+    }
+  
+    // If the trigger is for a different path, or triggerPath was malformed (e.g., undefined),
+    // then this specific node should defer to its local expansion state.
     return isLocallyExpanded;
   }, [expansionTrigger, path, value, isLocallyExpanded]);
 
