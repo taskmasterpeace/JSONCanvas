@@ -55,7 +55,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   }, [jsonData, viewMode]);
 
    useEffect(() => {
-    setExpansionTrigger(null);
+    setExpansionTrigger(null); // Reset global trigger when main data changes
   }, [jsonData]);
 
 
@@ -76,15 +76,16 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
       baseDataRef = currentLevel; 
     }
     
-    if (path.length === 0) {
+    if (path.length === 0) { // This means we are updating the root of the current view (either the section root, or the root of a card drill-down)
         if (viewMode === 'cards' && cardViewPath.length > 0) {
+            // Need to find the parent of the current cardViewPath in the original jsonData
             let parent = newJson;
             for (let i = 0; i < cardViewPath.length - 1; i++) {
                 parent = parent[cardViewPath[i]];
             }
             parent[cardViewPath[cardViewPath.length -1]] = newValue;
             onJsonChange(newJson);
-        } else {
+        } else { // Tree view, or card view root
              onJsonChange(newValue); 
         }
         return;
@@ -113,11 +114,10 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
 
 
     if (viewMode === 'cards' && cardViewPath.length > 0) {
-        let currentLevel = newJson; // Start from the root of the entire section's JSON data
+        let currentLevel = newJson; 
         let parentLevel = null;
         let lastSeg = null;
 
-        // Navigate to the parent of the current card view context
         for (let i = 0; i < cardViewPath.length; i++) {
             const segment = cardViewPath[i];
             if (typeof currentLevel !== 'object' || currentLevel === null || !(segment in (currentLevel as any))) {
@@ -128,9 +128,9 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
             lastSeg = segment;
             currentLevel = (currentLevel as any)[segment];
         }
-        baseDataRef = currentLevel; // This is the actual data object/array of the current card view
-        baseDataParentRef = parentLevel; // This is the parent of baseDataRef in the overall jsonData
-        lastSegmentOfBase = lastSeg; // This is the key/index of baseDataRef within baseDataParentRef
+        baseDataRef = currentLevel; 
+        baseDataParentRef = parentLevel; 
+        lastSegmentOfBase = lastSeg; 
     }
     
     if (path.length === 0) { 
@@ -148,7 +148,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
         return;
     }
     
-    let parentInCurrentContext = baseDataRef; // Start from the current card view's data or the section's root data
+    let parentInCurrentContext = baseDataRef; 
     for (let i = 0; i < path.length - 1; i++) {
       if (typeof parentInCurrentContext !== 'object' || parentInCurrentContext === null || !(path[i] in (parentInCurrentContext as any))) {
          toast({title: "Delete Error", description: "Cannot delete data at invalid path.", variant: "destructive"});
@@ -353,7 +353,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
       <Card className="my-4 shadow-lg bg-card">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center mb-2">
-            <CardTitle className="text-lg font-semibold text-primary flex items-center min-w-0">
+            <CardTitle className={`flex items-center min-w-0 ${ (viewMode === 'cards' && cardViewPath.length > 0) ? 'text-xl font-semibold text-primary' : 'text-lg font-semibold text-primary'}`}>
               {viewMode === 'cards' && cardViewPath.length > 0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
