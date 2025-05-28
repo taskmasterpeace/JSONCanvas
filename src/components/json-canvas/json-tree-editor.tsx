@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 interface JsonTreeEditorProps {
   jsonData: JsonValue;
   onJsonChange: (newJson: JsonValue) => void;
-  title?: string; 
+  title?: string;
   getApiKey: () => string | null;
 }
 
@@ -32,46 +32,49 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     if (!cardViewPath.length) return current;
     try {
         for (const segment of cardViewPath) {
-            if (typeof current !== 'object' || current === null) return undefined; 
+            if (typeof current !== 'object' || current === null) return undefined;
             current = (current as JsonObject | JsonArray)[segment as any];
         }
         return current;
     } catch (e) {
-        return undefined; 
+        return undefined;
     }
   }, [jsonData, cardViewPath]);
 
   const currentCardData = getCurrentCardData();
 
   useEffect(() => {
-    setExpansionTrigger(null);
-    // When jsonData changes (e.g. new file import or tab switch), reset cardViewPath for the new section
+    // When jsonData changes (e.g. new file import or tab switch), reset cardViewPath and expansion trigger.
     if (viewMode === 'cards') {
       setCardViewPath([]);
     }
+    setExpansionTrigger(null); // Reset global expand/collapse on data change
   }, [jsonData, viewMode]);
-  
+
   const handleUpdate = useCallback((path: JsonPath, newValue: JsonValue) => {
-    const newJson = JSON.parse(JSON.stringify(jsonData)); 
+    const newJson = JSON.parse(JSON.stringify(jsonData));
     let current = newJson;
-    if (path.length === 0) { 
+    // If path is for an item within the card view's current scope
+    const fullPath = [...cardViewPath, ...path];
+
+    if (fullPath.length === 0) {
       onJsonChange(newValue);
       return;
     }
-    for (let i = 0; i < path.length - 1; i++) {
-      current = current[path[i]];
+
+    let target = newJson;
+    for (let i = 0; i < fullPath.length - 1; i++) {
+      target = target[fullPath[i]];
     }
-    current[path[path.length - 1]] = newValue;
+    target[fullPath[fullPath.length - 1]] = newValue;
     onJsonChange(newJson);
-  }, [jsonData, onJsonChange]);
+  }, [jsonData, onJsonChange, cardViewPath]);
 
   const handleDelete = useCallback((path: JsonPath, keyOrIndex?: string | number) => {
-    const newJson = JSON.parse(JSON.stringify(jsonData)); 
-    let current = newJson;
-    let parent = null;
-    let lastSegmentInParent: string | number | null = null;
+    const newJson = JSON.parse(JSON.stringify(jsonData));
+    const fullPath = [...cardViewPath, ...path];
 
-    if (path.length === 0) { 
+    if (fullPath.length === 0) {
       if (typeof jsonData === 'object' && jsonData !== null) {
         onJsonChange(Array.isArray(jsonData) ? [] : {});
       } else {
@@ -79,39 +82,42 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
       }
       return;
     }
-    
-    for (let i = 0; i < path.length - 1; i++) {
+
+    let parent = null;
+    let current = newJson;
+    for (let i = 0; i < fullPath.length - 1; i++) {
       parent = current;
-      current = current[path[i]];
-      lastSegmentInParent = path[i];
+      current = current[fullPath[i]];
     }
 
-    const targetKeyOrIndex = path[path.length - 1];
-    
+    const targetKeyOrIndex = fullPath[fullPath.length - 1];
+
     if (Array.isArray(current)) {
       current.splice(Number(targetKeyOrIndex), 1);
     } else if (typeof current === 'object' && current !== null) {
       delete current[targetKeyOrIndex as string];
-    } else if (parent && lastSegmentInParent !== null) { 
-        if (Array.isArray(parent)) {
-            parent.splice(Number(lastSegmentInParent), 1);
-        } else {
-            delete parent[targetKeyOrIndex as string]; // This was path[path.length-1], should be targetKeyOrIndex
+    } else if (parent) { // Deleting the root of the current card view path
+        let rootSegment = cardViewPath.length > 0 ? cardViewPath[cardViewPath.length-1] : (title || (Array.isArray(jsonData) ? 0 : Object.keys(jsonData)[0]));
+        let parentOfRoot = newJson;
+        for (let i = 0; i < cardViewPath.length -1; i++){
+            parentOfRoot = parentOfRoot[cardViewPath[i]];
+        }
+        if (Array.isArray(parentOfRoot) && typeof rootSegment === 'number') {
+            parentOfRoot.splice(rootSegment,1)
+        } else if(typeof parentOfRoot === 'object' && parentOfRoot !== null && typeof rootSegment === 'string') {
+            delete parentOfRoot[rootSegment];
         }
     }
     onJsonChange(newJson);
-  }, [jsonData, onJsonChange]);
-  
+  }, [jsonData, onJsonChange, cardViewPath, title]);
+
   const handleAddProperty = useCallback((path: JsonPath, key: string, value: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
+    const fullPath = [...cardViewPath, ...path];
     let current = newJson;
-    if (path.length === 0 && typeof current === 'object' && !Array.isArray(current) && current !== null) {
-      current[key] = value;
-      onJsonChange(newJson);
-      return;
-    }
-    for (let i = 0; i < path.length; i++) {
-        current = current[path[i]];
+
+    for (let i = 0; i < fullPath.length; i++) {
+        current = current[fullPath[i]];
     }
     if (typeof current === 'object' && !Array.isArray(current) && current !== null) {
         current[key] = value;
@@ -119,18 +125,15 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     } else {
       toast({ title: "Cannot Add Property", description: "Can only add properties to objects.", variant: "destructive"});
     }
-  }, [jsonData, onJsonChange, toast]);
+  }, [jsonData, onJsonChange, cardViewPath, toast]);
 
   const handleAddItem = useCallback((path: JsonPath, value: JsonValue) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
+    const fullPath = [...cardViewPath, ...path];
     let current = newJson;
-    if (path.length === 0 && Array.isArray(current)) {
-      current.push(value);
-      onJsonChange(newJson);
-      return;
-    }
-    for (let i = 0; i < path.length; i++) {
-        current = current[path[i]];
+
+    for (let i = 0; i < fullPath.length; i++) {
+        current = current[fullPath[i]];
     }
     if (Array.isArray(current)) {
         current.push(value);
@@ -138,54 +141,43 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     } else {
       toast({ title: "Cannot Add Item", description: "Can only add items to arrays.", variant: "destructive"});
     }
-  }, [jsonData, onJsonChange, toast]);
+  }, [jsonData, onJsonChange, cardViewPath, toast]);
 
   const handleRenameKey = useCallback((path: JsonPath, oldKey: string, newKey: string) => {
     const newJson = JSON.parse(JSON.stringify(jsonData));
+    const fullPath = [...cardViewPath, ...path];
     let current = newJson;
-    if (path.length === 0 && typeof current === 'object' && !Array.isArray(current) && current !== null) {
-       if (oldKey in current && oldKey !== newKey) {
-        if (newKey in current) {
-            toast({title: "Rename Error", description: `Key "${newKey}" already exists at root.`, variant: "destructive"});
-            return;
-        }
-        const value = current[oldKey];
-        delete current[oldKey];
-        current[newKey] = value;
-        onJsonChange(newJson);
-      }
-      return;
-    }
 
-    for (let i = 0; i < path.length; i++) {
-        current = current[path[i]];
+    for (let i = 0; i < fullPath.length; i++) {
+        current = current[fullPath[i]];
     }
     if (typeof current === 'object' && !Array.isArray(current) && current !== null && oldKey in current) {
         if (newKey in current && oldKey !== newKey) {
             toast({title: "Rename Error", description: `New key "${newKey}" already exists in object.`, variant: "destructive"});
             return;
         }
-        if (oldKey === newKey) return; 
+        if (oldKey === newKey) return;
 
         const value = current[oldKey];
         delete current[oldKey];
         current[newKey] = value;
         onJsonChange(newJson);
     }
-  }, [jsonData, onJsonChange, toast]);
+  }, [jsonData, onJsonChange, cardViewPath, toast]);
+
 
   const handleExpandAll = useCallback(() => {
-    setExpansionTrigger({ type: 'expand', timestamp: Date.now() });
-  }, []);
+    setExpansionTrigger({ type: 'expand', path: viewMode === 'cards' ? cardViewPath : null, timestamp: Date.now() });
+  }, [viewMode, cardViewPath]);
 
   const handleCollapseAll = useCallback(() => {
-    setExpansionTrigger({ type: 'collapse', timestamp: Date.now() });
-  }, []);
+    setExpansionTrigger({ type: 'collapse', path: viewMode === 'cards' ? cardViewPath : null, timestamp: Date.now() });
+  }, [viewMode, cardViewPath]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
-    if(event.target.value && viewMode === 'tree') { 
-        handleExpandAll(); 
+    if(event.target.value && viewMode === 'tree') {
+        handleExpandAll();
     }
   };
 
@@ -195,50 +187,47 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
 
   const handleExploreCard = useCallback((keyOrIndex: string | number) => {
     setCardViewPath(prev => [...prev, keyOrIndex]);
+    setSearchTerm(''); // Clear search when exploring
   }, []);
 
   const handleCardViewBack = useCallback(() => {
     setCardViewPath(prev => prev.slice(0, -1));
+    setSearchTerm(''); // Clear search when going back
   }, []);
 
 
-  const formatPathForBreadcrumbs = (path: JsonPath | null, isCardView: boolean): string => {
-    const rootSegment = title || (Array.isArray(jsonData) ? 'Section Root' : 'Section Root');
-    
-    if (!path || path.length === 0) {
-      if (isCardView) return `${rootSegment} (Card View Root)`;
+  const formatPathForBreadcrumbs = (currentPath: JsonPath, isCardContext: boolean): string => {
+    const rootSegment = title || (Array.isArray(jsonData) && cardViewPath.length === 0 ? 'Section Root' : 'Section Root');
+
+    if (!currentPath || currentPath.length === 0) {
+      if(isCardContext) return `${rootSegment} (Card View Root)`;
       return `Hover over a tree node or view card path`;
     }
-    
-    if(path.length === 0 && (typeof jsonData !== 'object' || jsonData === null)){
-        return `${rootSegment} (Primitive Value)`
-    }
-    
-    const displayPath = path.map(segment => 
+
+    const displayPath = currentPath.map(segment =>
         typeof segment === 'number' ? `[${segment}]` : `.${segment}`
     ).join('');
 
-    // Ensure the root segment correctly joins with the path
     let base = rootSegment;
-    if (displayPath) {
-        if (displayPath.startsWith('[')) { // Array index
+     if (displayPath) {
+        if (displayPath.startsWith('[')) {
             base += displayPath;
-        } else if (displayPath.startsWith('.')) { // Object key, remove leading dot
+        } else if (displayPath.startsWith('.')) {
             base += displayPath;
-        } else { // Should be an object key without a leading dot
+        } else {
              base += `.${displayPath}`;
         }
     }
-    
-    return isCardView ? `${base} (Card View)` : base;
+
+    return isCardContext ? `${base} (Card View)` : base;
   };
 
   const isRootObject = typeof jsonData === 'object' && !Array.isArray(jsonData) && jsonData !== null;
   const isRootArray = Array.isArray(jsonData);
-  const canHaveChildren = isRootObject || isRootArray;
+  const canHaveChildren = typeof currentCardData === 'object' && currentCardData !== null; // For expand/collapse in card view context
 
-  // Determine what to display in Card View Header
-  const cardViewHeaderText = cardViewPath.length > 0 
+  const cardViewDisplayPath = cardViewPath.length > 0 ? cardViewPath : (title ? [] : []);
+  const cardViewHeaderText = cardViewPath.length > 0
     ? `Viewing: ${formatPathForBreadcrumbs(cardViewPath, true)}`
     : (title ? `${title} (Card View)`: `Section Root (Card View)`);
 
@@ -247,25 +236,23 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
       <Card className="my-4 shadow-lg bg-card">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center mb-2">
-            {viewMode === 'tree' && title && <CardTitle className="text-xl font-semibold text-primary">{title}</CardTitle>}
-             {viewMode === 'cards' && (
-                <CardTitle className="text-lg font-semibold text-primary flex items-center">
-                  {cardViewPath.length > 0 && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={handleCardViewBack} className="h-7 w-7 mr-2">
-                          <ArrowLeft size={18} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Back to Parent</p></TooltipContent>
-                    </Tooltip>
-                  )}
-                  <span className="truncate" title={cardViewHeaderText}>{cardViewHeaderText}</span>
-                </CardTitle>
-             )}
+            <CardTitle className="text-lg font-semibold text-primary flex items-center">
+              {viewMode === 'cards' && cardViewPath.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={handleCardViewBack} className="h-7 w-7 mr-2">
+                      <ArrowLeft size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Back to Parent</p></TooltipContent>
+                </Tooltip>
+              )}
+              <span className="truncate" title={viewMode === 'cards' ? cardViewHeaderText : title}>
+                {viewMode === 'cards' ? cardViewHeaderText : title}
+              </span>
+            </CardTitle>
             <div className="flex space-x-1 items-center">
-              
-              {canHaveChildren && viewMode === 'tree' && (
+              {(viewMode === 'tree' || (viewMode === 'cards' && canHaveChildren)) && (
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -285,10 +272,10 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
                   </Tooltip>
                 </>
               )}
-              {canHaveChildren && ( 
+              {(isRootObject || isRootArray) && ( // Only show toggle if root can be viewed as cards
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={() => setViewMode(viewMode === 'tree' ? 'cards' : 'tree')} className="h-7 w-7">
+                    <Button variant="ghost" size="icon" onClick={() => { setViewMode(viewMode === 'tree' ? 'cards' : 'tree'); setSearchTerm(''); setCardViewPath([]); }} className="h-7 w-7">
                       {viewMode === 'tree' ? <LayoutGrid size={18} /> : <ListTree size={18} />}
                     </Button>
                   </TooltipTrigger>
@@ -307,102 +294,116 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
               className="pl-8 h-9 bg-input"
             />
           </div>
-          {viewMode === 'tree' && (
-            <div className="mt-2 text-xs text-muted-foreground min-h-[1.25rem] flex items-center">
+          <div className="mt-2 text-xs text-muted-foreground min-h-[1.25rem] flex items-center">
               <Info size={12} className="mr-1.5 flex-shrink-0" />
               <span className="truncate">
-                {formatPathForBreadcrumbs(hoveredPath, false)}
+                {viewMode === 'tree'
+                    ? formatPathForBreadcrumbs(hoveredPath, false)
+                    : (cardViewPath.length > 0 ? `Current card path: ${formatPathForBreadcrumbs(cardViewPath, true)}` : "Top level of cards")
+                }
               </span>
             </div>
-          )}
         </CardHeader>
         <CardContent className="pt-2">
           {viewMode === 'tree' ? (
             <JsonNode
-                path={[]} 
-                value={jsonData} 
-                nodeKey={title || (typeof jsonData !== 'object' || jsonData === null ? "Root Value" : undefined)} 
+                path={[]}
+                value={jsonData}
+                nodeKey={title || (typeof jsonData !== 'object' || jsonData === null ? "Root Value" : undefined)}
                 onUpdate={handleUpdate}
                 onDelete={handleDelete}
-                onAddProperty={isRootObject ? handleAddProperty : undefined} 
-                onAddItem={isRootArray ? handleAddItem : undefined} 
-                onRenameKey={isRootObject ? handleRenameKey : undefined} 
+                onAddProperty={isRootObject ? handleAddProperty : undefined}
+                onAddItem={isRootArray ? handleAddItem : undefined}
+                onRenameKey={isRootObject ? handleRenameKey : undefined}
                 depth={0}
                 getApiKey={getApiKey}
                 expansionTrigger={expansionTrigger}
                 searchTerm={searchTerm}
                 onSetHoveredPath={handleSetHoveredPath}
+                isInCardViewTopLevel={false} // Explicitly false for tree view root
               />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
               {typeof currentCardData === 'object' && currentCardData !== null ? (
                 !Array.isArray(currentCardData) ? ( // It's an object
                   Object.entries(currentCardData).length > 0 ? (
-                    Object.entries(currentCardData).map(([key, value]) => (
-                      <Card key={key} className="shadow-md hover:shadow-lg transition-shadow flex flex-col">
-                        <CardHeader className="pb-2">
-                           <div className="flex justify-between items-start">
-                            <CardTitle className="text-lg truncate" title={key}>{key}</CardTitle>
+                    Object.entries(currentCardData).filter(([key, value]) => {
+                        if (!searchTerm) return true;
+                        return key.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                               (typeof value === 'string' && value.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                               (typeof value === 'number' && String(value).toLowerCase().includes(searchTerm.toLowerCase()));
+                    }).map(([key, value]) => (
+                      <Card key={key} className="shadow-md hover:shadow-lg transition-shadow flex flex-col bg-card border">
+                        <CardHeader className="pb-2 pt-3 px-4">
+                           <div className="flex justify-between items-start gap-2">
+                            <CardTitle className="text-md font-semibold text-primary truncate" title={key}>{key}</CardTitle>
                             {(typeof value === 'object' && value !== null) && (
-                                <Button variant="outline" size="sm" className="ml-2 h-7 text-xs px-2 py-1" onClick={() => handleExploreCard(key)}>
+                                <Button variant="outline" size="sm" className="ml-auto h-7 text-xs px-2 py-1 flex-shrink-0" onClick={() => handleExploreCard(key)}>
                                 Explore
                                 </Button>
                             )}
                           </div>
                         </CardHeader>
-                        <CardContent className="flex-grow">
+                        <CardContent className="flex-grow px-4 pb-3 pt-1">
                           <JsonNode
-                            path={[...cardViewPath, key]}
+                            path={[]} // Path is relative to this card's context, will be combined by handlers
                             value={value}
-                            nodeKey={key}
+                            nodeKey={key} // Pass the key so JsonNode knows its context
                             onUpdate={handleUpdate}
                             onDelete={handleDelete}
                             onAddProperty={handleAddProperty}
                             onAddItem={handleAddItem}
                             onRenameKey={handleRenameKey}
-                            depth={0} // Keep depth shallow for cards, or manage carefully
+                            depth={0} // Depth is 0 for the content within the card
                             getApiKey={getApiKey}
-                            expansionTrigger={null} // Cards don't use global expand/collapse trigger
+                            expansionTrigger={expansionTrigger}
                             searchTerm={searchTerm}
-                            // onSetHoveredPath is not relevant for nodes inside cards
+                            onSetHoveredPath={onSetHoveredPath} // For consistency, though less critical in card items
+                            isInCardViewTopLevel={true} // True, as this is top-level content of a card
                           />
                         </CardContent>
                       </Card>
                     ))
-                  ) : ( <p className="col-span-full text-center text-muted-foreground py-4">This object is empty.</p> )
+                  ) : ( <p className="col-span-full text-center text-muted-foreground py-4">This object is empty. {cardViewPath.length > 0 && <Button variant="link" onClick={handleCardViewBack}>Go back.</Button>}</p> )
                 ) : ( // It's an array
                   currentCardData.length > 0 ? (
-                    currentCardData.map((item, index) => (
-                      <Card key={index} className="shadow-md hover:shadow-lg transition-shadow flex flex-col">
-                        <CardHeader className="pb-2">
-                          <div className="flex justify-between items-start">
-                            <CardTitle className="text-lg">Item {index}</CardTitle>
+                    currentCardData.filter((item, index) => {
+                        if (!searchTerm) return true;
+                        return (String(index).toLowerCase().includes(searchTerm.toLowerCase())) ||
+                               (typeof item === 'string' && item.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                               (typeof item === 'number' && String(item).toLowerCase().includes(searchTerm.toLowerCase()));
+                    }).map((item, index) => (
+                      <Card key={index} className="shadow-md hover:shadow-lg transition-shadow flex flex-col bg-card border">
+                        <CardHeader className="pb-2 pt-3 px-4">
+                          <div className="flex justify-between items-start gap-2">
+                            <CardTitle className="text-md font-semibold text-primary">Item {index}</CardTitle>
                              {(typeof item === 'object' && item !== null) && (
-                                <Button variant="outline" size="sm" className="ml-2 h-7 text-xs px-2 py-1" onClick={() => handleExploreCard(index)}>
+                                <Button variant="outline" size="sm" className="ml-auto h-7 text-xs px-2 py-1 flex-shrink-0" onClick={() => handleExploreCard(index)}>
                                 Explore
                                 </Button>
                             )}
                           </div>
                         </CardHeader>
-                        <CardContent className="flex-grow">
+                        <CardContent className="flex-grow px-4 pb-3 pt-1">
                            <JsonNode
-                            path={[...cardViewPath, index]}
+                            path={[]} // Path relative to this card's context
                             value={item}
                             // nodeKey is not needed for array items, JsonNode handles index display
                             onUpdate={handleUpdate}
                             onDelete={handleDelete}
-                            onAddProperty={handleAddProperty} // Will only work if item is an object
-                            onAddItem={handleAddItem}       // Will only work if item is an array
-                            onRenameKey={handleRenameKey}   // Will only work if item is an object
-                            depth={0} // Keep depth shallow for cards
+                            onAddProperty={handleAddProperty}
+                            onAddItem={handleAddItem}
+                            onRenameKey={handleRenameKey}
+                            depth={0} // Depth is 0 for content within the card
                             getApiKey={getApiKey}
-                            expansionTrigger={null}
+                            expansionTrigger={expansionTrigger}
                             searchTerm={searchTerm}
+                            isInCardViewTopLevel={true} // True, as this is top-level content of a card
                           />
                         </CardContent>
                       </Card>
                     ))
-                  ) : ( <p className="col-span-full text-center text-muted-foreground py-4">This array is empty.</p> )
+                  ) : ( <p className="col-span-full text-center text-muted-foreground py-4">This array is empty. {cardViewPath.length > 0 && <Button variant="link" onClick={handleCardViewBack}>Go back.</Button>}</p> )
                 )
               ) : (
                 <Card className="col-span-full">
@@ -417,6 +418,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
                         }
                         {(cardViewPath.length > 0 && (typeof currentCardData !== 'object' || currentCardData === null)) && " Cannot explore further."}
                         {(cardViewPath.length === 0 && (typeof jsonData !== 'object' || jsonData === null)) && " This section's root value cannot be displayed as cards."}
+                        {cardViewPath.length > 0 && <Button variant="link" onClick={handleCardViewBack}>Go back.</Button>}
                         </p>
                     </CardContent>
                 </Card>
@@ -428,3 +430,4 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     </TooltipProvider>
   );
 }
+

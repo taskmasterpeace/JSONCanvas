@@ -23,4 +23,6 @@ export interface EditableJsonNodeProps {
   expansionTrigger?: ExpansionTrigger;
   searchTerm?: string; // For highlighting search matches
   onSetHoveredPath?: (path: JsonPath | null) => void; // For breadcrumbs
+  isInCardViewTopLevel?: boolean; // New prop to indicate if the node is the top-level content of a card in card view
 }
+
