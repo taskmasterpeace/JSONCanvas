@@ -99,10 +99,11 @@ export function EditEntireJsonDialog({ open, onOpenChange, currentJson, onSave, 
     setIsGeneratingPatch(true);
     setGeneratedPatchString(null); // Clear previous patch
     try {
+      // Use the current jsonString from the editor as the basis for the patch
       const input: GenerateJsonPatchInput = { currentJson: jsonString, instructions: aiPatchInstructions };
       const result = await generateJsonPatch(input);
       setGeneratedPatchString(result.patchOperations);
-      toast({ title: 'JSON Patch Generated', description: 'Review the generated patch below and apply if correct.' });
+      toast({ title: 'JSON Patch Generated', description: result.explanation || 'Review the generated patch below and apply if correct.' });
     } catch (error: any) {
       toast({ title: 'Patch Generation Failed', description: error.message || 'Could not generate JSON patch with AI.', variant: 'destructive' });
       console.error('Error generating JSON patch with AI:', error);
@@ -118,9 +119,13 @@ export function EditEntireJsonDialog({ open, onOpenChange, currentJson, onSave, 
       const currentJsonObject = JSON.parse(jsonString);
       const patchOperations = JSON.parse(generatedPatchString) as Operation[];
       
-      const patchedDocument = applyPatch(currentJsonObject, patchOperations, true, false).newDocument;
+      // The third argument `true` enables "validateOperation" which can be stricter
+      // The fourth argument `false` means "mutate original object = false" (it returns a new one)
+      // but fast-json-patch v3.1.1 by default mutates.
+      // To be safe, we rely on the behavior of applyPatch which returns the newDocument.
+      const patchedResult = applyPatch(currentJsonObject, patchOperations, true, false);
       
-      setJsonString(JSON.stringify(patchedDocument, null, 2));
+      setJsonString(JSON.stringify(patchedResult.newDocument, null, 2));
       toast({ title: 'Patch Applied Successfully', description: 'The JSON has been updated with the AI-generated changes.' });
       setGeneratedPatchString(null); // Clear patch after applying
       setAiPatchInstructions(''); // Optionally clear instructions
@@ -137,6 +142,9 @@ export function EditEntireJsonDialog({ open, onOpenChange, currentJson, onSave, 
 
   const handleDiscardPatch = () => {
     setGeneratedPatchString(null);
+    // Optionally clear aiPatchInstructions as well if desired, or leave for re-attempt
+    // setAiPatchInstructions(''); 
+    toast({title: 'Patch Discarded'});
   };
   
   const isDialogActionInProgress = isFormatting || isGeneratingPatch;
@@ -167,7 +175,7 @@ export function EditEntireJsonDialog({ open, onOpenChange, currentJson, onSave, 
               type="button" 
               onClick={handleFormatWithAI} 
               variant="outline" 
-              disabled={isDialogActionInProgress || !!generatedPatchString} 
+              disabled={isFormatting || isGeneratingPatch || !!generatedPatchString} 
               className="w-full"
             >
               {isFormatting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
@@ -184,13 +192,13 @@ export function EditEntireJsonDialog({ open, onOpenChange, currentJson, onSave, 
               onChange={(e) => setAiPatchInstructions(e.target.value)}
               className="min-h-[120px] text-sm resize-none bg-input"
               placeholder="e.g., Change project name to 'New Project', add a 'status' field with value 'active'."
-              disabled={isDialogActionInProgress || !!generatedPatchString}
+              disabled={isGeneratingPatch || !!generatedPatchString}
             />
             <Button 
               type="button" 
               onClick={handleGeneratePatchWithAI} 
               variant="outline" 
-              disabled={isDialogActionInProgress || !aiPatchInstructions.trim() || !!generatedPatchString}
+              disabled={isGeneratingPatch || !aiPatchInstructions.trim() || !!generatedPatchString}
               className="w-full"
             >
               {isGeneratingPatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
@@ -199,18 +207,18 @@ export function EditEntireJsonDialog({ open, onOpenChange, currentJson, onSave, 
 
             {generatedPatchString && (
               <div className="mt-3 border p-3 rounded-md bg-muted/50 flex-grow flex flex-col">
-                <Label htmlFor="generatedPatchReview" className="mb-1">Generated JSON Patch (Review)</Label>
+                <Label htmlFor="generatedPatchReview" className="mb-1 font-semibold">Generated JSON Patch (Review)</Label>
                 <Textarea
                   id="generatedPatchReview"
                   value={generatedPatchString}
                   readOnly
-                  className="min-h-[calc(80vh-450px)] font-mono text-xs resize-none h-full bg-input/70"
+                  className="min-h-[calc(80vh-480px)] md:min-h-[calc(80vh-450px)] font-mono text-xs resize-none h-full bg-input/70"
                 />
-                <div className="mt-3 flex space-x-2">
+                <div className="mt-3 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                   <Button onClick={handleApplyGeneratedPatch} className="flex-1" size="sm">
                     <CheckCircle className="mr-2 h-4 w-4" /> Apply This Patch
                   </Button>
-                  <Button onClick={handleDiscardPatch} variant="destructive" className="flex-1" size="sm">
+                  <Button onClick={handleDiscardPatch} variant="outline" className="flex-1" size="sm">
                     <XCircle className="mr-2 h-4 w-4" /> Discard Patch
                   </Button>
                 </div>
@@ -232,4 +240,3 @@ export function EditEntireJsonDialog({ open, onOpenChange, currentJson, onSave, 
     </Dialog>
   );
 }
-

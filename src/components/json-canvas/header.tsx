@@ -4,7 +4,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, AlertTriangle, LayoutDashboard, Sun, Moon } from 'lucide-react'; 
+import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, LayoutDashboard, Sun, Moon } from 'lucide-react'; 
 
 interface HeaderProps {
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -93,7 +93,7 @@ export function Header({
                   <FileJson2 className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Edit Entire Active Document (Raw + AI Fix)</p></TooltipContent>
+              <TooltipContent><p>Edit Entire Active Document (Raw + AI)</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -127,16 +127,6 @@ export function Header({
               </TooltipTrigger>
               <TooltipContent><p>Google AI API Key</p></TooltipContent>
             </Tooltip>
-             <Tooltip>
-              <TooltipTrigger asChild>
-                 <Button variant="ghost" size="icon" asChild>
-                    <a href="https://firebase.google.com/docs/studio" target="_blank" rel="noopener noreferrer" aria-label="Powered by Firebase Studio">
-                       <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                    </a>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Warning: This is an AI-generated app (experimental)</p></TooltipContent>
-            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                  <Button variant="ghost" size="icon" asChild>
@@ -153,4 +143,3 @@ export function Header({
     </TooltipProvider>
   );
 }
-
