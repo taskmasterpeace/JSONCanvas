@@ -59,7 +59,7 @@ export function Header({
                 <title>JSON Canvas</title>
                 <path d="M6 18h12V6H6v12zm2-10h2v2H8V8zm0 4h2v2H8v-2zm0 4h2v2H8v-2zm4-8h2v2h-2V8zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zm4-8h2v2h-2V8zm0 4h2v2h-2v-2zM4 22h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2z"/>
               </svg>
-            <h1 className="text-2xl font-semibold text-primary">JSON Canvas</h1>
+            <h1 className="text-2xl font-semibold text-primary">JSON Canvas AI</h1>
           </div>
           <div className="flex items-center space-x-2">
             <Tooltip>
@@ -130,7 +130,7 @@ export function Header({
             <Tooltip>
               <TooltipTrigger asChild>
                  <Button variant="ghost" size="icon" asChild>
-                    <a href="https://github.com/firebase/studio-examples/tree/main/json-canvas-ai" target="_blank" rel="noopener noreferrer" aria-label="View on GitHub">
+                    <a href="https://github.com/taskmasterpeace/JSONCanvas" target="_blank" rel="noopener noreferrer" aria-label="View on GitHub">
                         <Github className="h-5 w-5" />
                     </a>
                 </Button>
