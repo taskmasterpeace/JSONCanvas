@@ -3,6 +3,15 @@
 
 JSON Canvas AI is a modern, privacy-first web application for visually editing, enhancing, and managing complex JSON documents. Built with Next.js, React, ShadCN UI, Tailwind CSS, and powered by Genkit for AI features, it offers an intuitive and powerful way to work with JSON data.
 
+## Setup
+
+Copy `.env.example` to `.env` and add your Google AI API key:
+
+```bash
+cp .env.example .env
+# then edit .env and set GOOGLE_AI_API_KEY
+```
+
 ## 🚀 Rapid Import & AI Formatting
 
 - **Paste Anything:** Instantly import data by pasting raw text, CSV, lists, or messy snippets. No need for perfect JSON.
