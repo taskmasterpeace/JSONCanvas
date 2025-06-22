@@ -22,6 +22,7 @@ interface HeaderProps {
   onToggleTheme: () => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
+  hasApiKey: boolean;
 }
 
 export function Header({
@@ -39,6 +40,7 @@ export function Header({
   onToggleTheme,
   selectedModel,
   onModelChange,
+  hasApiKey,
 }: HeaderProps) {
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -116,7 +118,7 @@ export function Header({
               </TooltipTrigger>
               <TooltipContent><p>Redo (Ctrl+Y) in Active Document</p></TooltipContent>
             </Tooltip>
-            <ModelSelector value={selectedModel} onChange={onModelChange} />
+            <ModelSelector value={selectedModel} onChange={onModelChange} disabled={!hasApiKey} />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={onToggleTheme}>
