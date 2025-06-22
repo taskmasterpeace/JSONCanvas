@@ -12,6 +12,24 @@ cp .env.example .env
 # then edit .env and set GOOGLE_AI_API_KEY
 ```
 
+## Switching Genkit Plugins
+
+`src/ai/genkit.ts` configures Genkit to use the Google AI plugin. To use a
+different provider, swap the plugin import and `plugins` array in that file.
+For example, with OpenRouter:
+
+```ts
+import {openrouter} from '@genkit-ai/openrouter';
+
+export const ai = genkit({
+  plugins: [openrouter()],
+  model: 'openrouter/gpt-4o',
+});
+```
+
+Add the provider's API key to `.env` (e.g., `OPENROUTER_API_KEY`) and restart
+the Genkit dev server.
+
 ## 🚀 Rapid Import & AI Formatting
 
 - **Paste Anything:** Instantly import data by pasting raw text, CSV, lists, or messy snippets. No need for perfect JSON.
