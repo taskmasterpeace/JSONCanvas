@@ -4,7 +4,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, LayoutDashboard, Sun, Moon } from 'lucide-react'; 
+import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, LayoutDashboard, Sun, Moon } from 'lucide-react';
+import { ModelSelector } from './model-selector';
 
 interface HeaderProps {
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -15,10 +16,12 @@ interface HeaderProps {
   canRedo: boolean;
   onOpenApiKeyDialog: () => void;
   onOpenEditEntireJsonDialog: () => void;
-  onOpenQuickImportDialog: () => void; 
+  onOpenQuickImportDialog: () => void;
   onToggleSidebar: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  selectedModel: string;
+  onModelChange: (model: string) => void;
 }
 
 export function Header({
@@ -34,6 +37,8 @@ export function Header({
   onToggleSidebar,
   theme,
   onToggleTheme,
+  selectedModel,
+  onModelChange,
 }: HeaderProps) {
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -111,7 +116,8 @@ export function Header({
               </TooltipTrigger>
               <TooltipContent><p>Redo (Ctrl+Y) in Active Document</p></TooltipContent>
             </Tooltip>
-             <Tooltip>
+            <ModelSelector value={selectedModel} onChange={onModelChange} />
+            <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={onToggleTheme}>
                   {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
