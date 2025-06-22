@@ -22,6 +22,7 @@ const LOCAL_STORAGE_KEYS = {
   ACTIVE_DOCUMENT_ID: 'jsonCanvas_activeDocumentId',
   API_KEY: 'google_ai_api_key',
   THEME: 'jsonCanvas_theme',
+  MODEL: 'jsonCanvas_model',
 };
 
 const initialJson: JsonValue = {
@@ -101,9 +102,10 @@ export default function Home() {
   const [isClient, setIsClient] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [selectedModel, setSelectedModel] = useState('');
 
 
-  // Theme management
+  // Theme and model management
   useEffect(() => {
     if (!isClient) return;
     const storedTheme = localStorage.getItem(LOCAL_STORAGE_KEYS.THEME) as 'light' | 'dark' | null;
@@ -123,9 +125,14 @@ export default function Home() {
         localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, 'dark');
       } else {
         setTheme('light');
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, 'light');
-      }
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, 'light');
+    }
+  }
+
+    const storedModel = localStorage.getItem(LOCAL_STORAGE_KEYS.MODEL);
+    if (storedModel) {
+      setSelectedModel(storedModel);
     }
   }, [isClient]);
 
@@ -461,6 +468,11 @@ export default function Home() {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         theme={theme}
         onToggleTheme={toggleTheme}
+        selectedModel={selectedModel}
+        onModelChange={(m) => {
+          setSelectedModel(m);
+          localStorage.setItem(LOCAL_STORAGE_KEYS.MODEL, m);
+        }}
       />
       <div className="flex flex-1 overflow-hidden">
         <DocumentSidebar

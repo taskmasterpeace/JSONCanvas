@@ -27,15 +27,15 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   const [cardViewPath, setCardViewPath] = useState<JsonPath>([]);
   const { toast } = useToast();
 
-  const getCurrentCardData = useCallback((): JsonValue => {
+  const getCurrentCardData = useCallback((): JsonValue | undefined => {
     let currentData = jsonData;
     if (!cardViewPath.length) return currentData;
     try {
         for (const segment of cardViewPath) {
             if (typeof currentData !== 'object' || currentData === null || !(segment in (currentData as any))) {
-                 return undefined; 
+                 return undefined;
             }
-            currentData = (currentData as JsonObject | JsonArray)[segment as any];
+            currentData = (currentData as any)[segment as any];
         }
         return currentData;
     } catch (e) {
@@ -44,7 +44,7 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
     }
   }, [jsonData, cardViewPath]);
 
-  const currentCardData = getCurrentCardData();
+  const currentCardData: JsonValue | undefined = getCurrentCardData();
 
   useEffect(() => {
     if (viewMode === 'cards') {
