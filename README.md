@@ -16,7 +16,13 @@ cp .env.example .env
 
 `src/ai/genkit.ts` configures Genkit to use the Google AI plugin. To use a
 different provider, swap the plugin import and `plugins` array in that file.
-For example, with OpenRouter:
+First install the desired Genkit plugin, e.g.:
+
+```bash
+npm install @genkit-ai/openrouter
+```
+
+### Using OpenRouter
 
 ```ts
 import {openrouter} from '@genkit-ai/openrouter';
@@ -27,8 +33,24 @@ export const ai = genkit({
 });
 ```
 
-Add the provider's API key to `.env` (e.g., `OPENROUTER_API_KEY`) and restart
-the Genkit dev server.
+Add the provider's API key to `.env` (e.g., `OPENROUTER_API_KEY`) and set
+`MODEL_PROVIDER=openrouter` before restarting the Genkit dev server.
+
+### Using Requesty
+
+To access the 150+ models available via [Requesty](https://requesty.ai) you can
+point the OpenRouter plugin at their router URL:
+
+```ts
+import {openrouter} from '@genkit-ai/openrouter';
+
+export const ai = genkit({
+  plugins: [openrouter({baseUrl: 'https://router.requesty.ai/v1'})],
+  model: 'openrouter/gpt-3.5-turbo',
+});
+```
+
+Set `REQUESTY_API_KEY` and `MODEL_PROVIDER=requesty` in your `.env` file.
 
 ## 🚀 Rapid Import & AI Formatting
 

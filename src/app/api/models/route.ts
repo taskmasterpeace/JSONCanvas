@@ -19,6 +19,19 @@ export async function GET() {
           models = data.data.map((m: any) => m.id);
         }
       }
+    } else if (provider === 'requesty') {
+      const res = await fetch('https://router.requesty.ai/v1/models', {
+        headers: {
+          Authorization: `Bearer ${process.env.REQUESTY_API_KEY || ''}`,
+        },
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.data)) {
+          models = data.data.map((m: any) => m.id);
+        }
+      }
     } else if (provider === 'google') {
       const url = `https://generativelanguage.googleapis.com/v1/models?key=${process.env.GOOGLE_AI_API_KEY || ''}`;
       const res = await fetch(url, {cache: 'no-store'});
