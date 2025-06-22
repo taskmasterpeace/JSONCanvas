@@ -156,6 +156,8 @@ export default function Home() {
       const storedKey = localStorage.getItem(LOCAL_STORAGE_KEYS.API_KEY);
       if (storedKey) {
         setApiKey(storedKey);
+      } else {
+        setIsApiKeyDialogOpen(true);
       }
     } catch (error) {
       console.error("Error reading API key from localStorage:", error);
@@ -473,6 +475,7 @@ export default function Home() {
           setSelectedModel(m);
           localStorage.setItem(LOCAL_STORAGE_KEYS.MODEL, m);
         }}
+        hasApiKey={Boolean(apiKey)}
       />
       <div className="flex flex-1 overflow-hidden">
         <DocumentSidebar
