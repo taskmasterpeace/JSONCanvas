@@ -270,4 +270,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-*Built with ❤️ by the JSON Canvas AI team. Star us on GitHub if you find this helpful!*
+*Built with ❤️ by Machine King Labs. Star us on GitHub if you find this helpful!*
