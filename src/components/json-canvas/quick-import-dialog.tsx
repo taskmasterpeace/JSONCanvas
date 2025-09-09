@@ -15,9 +15,11 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { AIProcessingSkeleton, LoadingState } from '@/components/ui/loading-states';
+import { useLoading, LOADING_KEYS } from '@/contexts/loading-context';
 import type { JsonValue } from './types';
 import { convertTextToJson, type ConvertTextToJsonInput } from '@/ai/flows/convert-text-to-json-flow';
-import { Loader2, Zap } from 'lucide-react';
+import { Loader2, Zap, Sparkles } from 'lucide-react';
 
 interface QuickImportDialogProps {
   open: boolean;
@@ -29,8 +31,8 @@ interface QuickImportDialogProps {
 export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: QuickImportDialogProps) {
   const [rawText, setRawText] = useState('');
   const [aiInstructions, setAiInstructions] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { isLoading, setLoading } = useLoading();
 
   const handleImportWithAI = async () => {
     const apiKey = getApiKey();
@@ -43,7 +45,7 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
       return;
     }
 
-    setIsLoading(true);
+    setLoading(LOADING_KEYS.AI_TEXT_TO_JSON, true);
     try {
       const input: ConvertTextToJsonInput = { 
         rawText,
@@ -65,12 +67,12 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
       console.error('Error importing with AI:', error);
       toast({ title: 'Import Failed', description: error.message || 'Could not convert text to JSON. Check console for details.', variant: 'destructive' });
     } finally {
-      setIsLoading(false);
+      setLoading(LOADING_KEYS.AI_TEXT_TO_JSON, false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isLoading) onOpenChange(isOpen); }}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isLoading(LOADING_KEYS.AI_TEXT_TO_JSON)) onOpenChange(isOpen); }}>
       <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col bg-card">
         <DialogHeader>
           <DialogTitle>Quick Import to New Document</DialogTitle>
@@ -79,7 +81,11 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
             You can provide optional instructions to guide the AI.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow flex flex-col gap-4 overflow-y-auto py-4">
+        
+        {isLoading(LOADING_KEYS.AI_TEXT_TO_JSON) ? (
+          <AIProcessingSkeleton message="Converting your text to structured JSON..." />
+        ) : (
+          <div className="flex-grow flex flex-col gap-4 overflow-y-auto py-4">
           <div>
             <Label htmlFor="rawTextImport" className="mb-1 block">Text to Import</Label>
             <Textarea
@@ -88,7 +94,7 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
               onChange={(e) => setRawText(e.target.value)}
               className="min-h-[200px] font-mono text-sm resize-none h-full bg-input"
               placeholder="Paste your text here..."
-              disabled={isLoading}
+              disabled={isLoading(LOADING_KEYS.AI_TEXT_TO_JSON)}
             />
           </div>
           <div>
@@ -99,19 +105,23 @@ export function QuickImportDialog({ open, onOpenChange, onImport, getApiKey }: Q
               onChange={(e) => setAiInstructions(e.target.value)}
               className="min-h-[100px] text-sm resize-none h-full bg-input"
               placeholder="e.g., Create an array of objects. Each object should have 'name' and 'email' keys."
-              disabled={isLoading}
+              disabled={isLoading(LOADING_KEYS.AI_TEXT_TO_JSON)}
             />
           </div>
         </div>
+        )}
+        
+        {!isLoading(LOADING_KEYS.AI_TEXT_TO_JSON) && (
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={isLoading}>Cancel</Button>
+            <Button type="button" variant="outline" disabled={isLoading(LOADING_KEYS.AI_TEXT_TO_JSON)}>Cancel</Button>
           </DialogClose>
-          <Button type="button" onClick={handleImportWithAI} disabled={isLoading || !rawText.trim()}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-            Import with AI
+          <Button type="button" onClick={handleImportWithAI} disabled={isLoading(LOADING_KEYS.AI_TEXT_TO_JSON) || !rawText.trim()}>
+            {isLoading(LOADING_KEYS.AI_TEXT_TO_JSON) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            {isLoading(LOADING_KEYS.AI_TEXT_TO_JSON) ? 'Processing...' : 'Import with AI'}
           </Button>
         </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

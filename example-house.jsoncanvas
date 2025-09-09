@@ -1,0 +1,687 @@
+{
+  "$schema": "jsoncanvas/v1.0",
+  "$metadata": {
+    "version": "1.0",
+    "created": "2024-01-05T10:00:00Z",
+    "lastModified": "2025-01-05T18:00:00Z",
+    "title": "My House - AI Visual Memory",
+    "description": "Complete house knowledge base with AI-powered insights and visual organization",
+    
+    "display": {
+      "primaryLayout": "spatial-treemap",
+      "theme": {
+        "colorScheme": "light",
+        "accentColor": "#667eea",
+        "confidenceColors": {
+          "high": "#10b981",
+          "medium": "#f59e0b",
+          "low": "#ef4444", 
+          "verified": "#3b82f6"
+        }
+      },
+      "layoutConfig": {
+        "treemap": {
+          "aspectRatio": 1.6,
+          "padding": 6,
+          "minRoomSize": 120,
+          "showLabels": true
+        },
+        "tabs": {
+          "defaultTab": "rooms",
+          "tabOrder": ["overview", "rooms", "systems", "maintenance", "inventory", "ai-insights"],
+          "showTabIcons": true
+        }
+      }
+    },
+    
+    "structure": {
+      "grouping": {
+        "primary": "room",
+        "secondary": "recent",
+        "customGroups": [
+          {
+            "id": "high_maintenance",
+            "name": "High Maintenance Items",
+            "description": "Items requiring frequent attention",
+            "criteria": "$..[?(@.maintenance_frequency && @.maintenance_frequency < 90)]",
+            "icon": "wrench",
+            "color": "#f59e0b"
+          },
+          {
+            "id": "smart_devices",
+            "name": "Smart Devices", 
+            "description": "Connected/IoT devices throughout house",
+            "criteria": "$..[?(@.type == 'smart' || @.connected == true)]",
+            "icon": "wifi",
+            "color": "#3b82f6"
+          }
+        ]
+      },
+      "hierarchy": {
+        "levels": [
+          { "level": 0, "name": "House", "field": "$", "displayName": "Entire House", "icon": "home" },
+          { "level": 1, "name": "Floor", "field": "floors.*", "displayName": "Floor", "icon": "layers" },
+          { "level": 2, "name": "Room", "field": "floors.*.rooms.*", "displayName": "Room", "icon": "square" },
+          { "level": 3, "name": "Category", "field": "floors.*.rooms.*.categories.*", "displayName": "Category", "icon": "folder" },
+          { "level": 4, "name": "Items", "field": "floors.*.rooms.*.categories.*.items.*", "displayName": "Item", "icon": "box" }
+        ],
+        "relationships": [
+          { "type": "parent-child", "from": "floors", "to": "floors.*.rooms", "label": "contains rooms" },
+          { "type": "parent-child", "from": "floors.*.rooms", "to": "floors.*.rooms.*.categories", "label": "has categories" },
+          { "type": "contains", "from": "floors.*.rooms.*.categories", "to": "floors.*.rooms.*.categories.*.items" },
+          { "type": "reference", "from": "systems.electrical.circuits.*", "to": "floors.*.rooms.*", "label": "powers" }
+        ]
+      },
+      "spatial": {
+        "type": "house",
+        "bounds": { "width": 3000, "height": 2000 },
+        "rooms": [
+          { "id": "kitchen", "name": "Kitchen", "x": 100, "y": 100, "width": 400, "height": 350, "floor": 1, "type": "kitchen" },
+          { "id": "living_room", "name": "Living Room", "x": 600, "y": 100, "width": 500, "height": 400, "floor": 1, "type": "living" },
+          { "id": "dining_room", "name": "Dining Room", "x": 500, "y": 100, "width": 300, "height": 250, "floor": 1, "type": "dining" },
+          { "id": "master_bedroom", "name": "Master Bedroom", "x": 100, "y": 600, "width": 450, "height": 400, "floor": 1, "type": "bedroom" },
+          { "id": "master_bathroom", "name": "Master Bathroom", "x": 600, "y": 600, "width": 200, "height": 300, "floor": 1, "type": "bathroom" },
+          { "id": "home_office", "name": "Home Office", "x": 900, "y": 600, "width": 300, "height": 350, "floor": 1, "type": "office" },
+          { "id": "garage", "name": "Garage", "x": 100, "y": 1200, "width": 600, "height": 500, "floor": 1, "type": "garage" }
+        ],
+        "connections": [
+          { "room1": "kitchen", "room2": "dining_room", "type": "opening", "bidirectional": true },
+          { "room1": "dining_room", "room2": "living_room", "type": "opening", "bidirectional": true },
+          { "room1": "kitchen", "room2": "living_room", "type": "opening", "bidirectional": true },
+          { "room1": "master_bedroom", "room2": "master_bathroom", "type": "door", "bidirectional": true },
+          { "room1": "kitchen", "room2": "garage", "type": "door", "bidirectional": true }
+        ]
+      }
+    },
+    
+    "ai": {
+      "globalConfidence": 91,
+      "lastAIUpdate": "2025-01-05T17:45:00Z",
+      "insights": [
+        {
+          "id": "insight_001",
+          "timestamp": "2025-01-05T15:30:00Z",
+          "type": "discovery",
+          "title": "Kitchen shows heavy cooking usage",
+          "description": "Multiple professional-grade appliances and extensive cookware suggest frequent cooking. Spice collection indicates diverse cuisine preparation.",
+          "confidence": 94,
+          "relatedPaths": ["floors.first.rooms.kitchen.categories.appliances", "floors.first.rooms.kitchen.categories.cookware"]
+        },
+        {
+          "id": "insight_002", 
+          "timestamp": "2025-01-05T16:15:00Z",
+          "type": "pattern",
+          "title": "Home office optimized for productivity",
+          "description": "Dual monitor setup, ergonomic furniture, and organization systems indicate serious work-from-home usage.",
+          "confidence": 88,
+          "relatedPaths": ["floors.first.rooms.home_office"]
+        },
+        {
+          "id": "insight_003",
+          "timestamp": "2025-01-05T17:00:00Z", 
+          "type": "suggestion",
+          "title": "Smart home integration opportunity",
+          "description": "Multiple devices could benefit from smart home integration: thermostat, lighting, security system.",
+          "confidence": 82,
+          "relatedPaths": ["systems.hvac", "systems.electrical", "systems.security"]
+        }
+      ],
+      "fieldMetadata": {
+        "floors.first.rooms.kitchen.categories.appliances.items.refrigerator": {
+          "confidence": 98,
+          "lastUpdated": "2025-01-05T14:20:00Z",
+          "source": "user-input",
+          "notes": "User verified exact model and purchase date"
+        },
+        "floors.first.rooms.living_room.categories.electronics.items.tv": {
+          "confidence": 95,
+          "lastUpdated": "2025-01-05T16:45:00Z", 
+          "source": "ai-verified",
+          "notes": "AI identified from photo, user confirmed specs"
+        },
+        "systems.hvac.main_unit.last_service": {
+          "confidence": 65,
+          "lastUpdated": "2025-01-05T12:00:00Z",
+          "source": "ai-generated",
+          "notes": "AI estimated based on typical service intervals",
+          "suggestions": ["Please confirm actual last service date"]
+        }
+      },
+      "learningHistory": [
+        {
+          "timestamp": "2025-01-05T17:45:00Z",
+          "event": "learned",
+          "path": "floors.first.rooms.kitchen.categories.appliances.items.coffee_maker",
+          "newValue": { "brand": "Breville", "model": "Barista Express", "type": "espresso" },
+          "method": "image-recognition",
+          "confidence": 92
+        },
+        {
+          "timestamp": "2025-01-05T16:30:00Z",
+          "event": "updated", 
+          "path": "floors.first.rooms.home_office.categories.furniture.items.desk.height",
+          "oldValue": "estimated 30 inches",
+          "newValue": "adjustable 28-48 inches",
+          "method": "user-input",
+          "confidence": 100
+        }
+      ],
+      "suggestions": [
+        {
+          "id": "suggest_001",
+          "timestamp": "2025-01-05T17:30:00Z",
+          "type": "missing-data",
+          "title": "Garage inventory incomplete",
+          "description": "Large space with minimal catalogued items. Consider adding tools, storage, vehicles.",
+          "suggestedAction": "Take photos or manually add garage contents",
+          "path": "floors.first.rooms.garage.categories",
+          "priority": "medium",
+          "estimatedEffort": "medium"
+        },
+        {
+          "id": "suggest_002",
+          "timestamp": "2025-01-05T16:45:00Z",
+          "type": "maintenance",
+          "title": "HVAC filter replacement due",
+          "description": "Based on last replacement date, filter should be changed soon",
+          "suggestedAction": "Schedule HVAC filter replacement",
+          "path": "systems.hvac.main_unit",
+          "priority": "high",
+          "estimatedEffort": "easy"
+        },
+        {
+          "id": "suggest_003",
+          "timestamp": "2025-01-05T15:00:00Z",
+          "type": "optimization",
+          "title": "Smart thermostat integration",
+          "description": "Current thermostat could be upgraded to smart model for better efficiency",
+          "suggestedAction": "Research compatible smart thermostats",
+          "path": "systems.hvac.thermostat",
+          "priority": "low",
+          "estimatedEffort": "complex"
+        }
+      ]
+    },
+    
+    "userPreferences": {
+      "defaultView": "spatial-treemap",
+      "favoriteRooms": ["kitchen", "home_office", "living_room"],
+      "hiddenSections": ["systems.plumbing.technical_specs"],
+      "autoSave": true,
+      "showConfidence": true,
+      "enableAISuggestions": true,
+      "quickActions": [
+        {
+          "id": "add_kitchen_item",
+          "name": "Add Kitchen Item",
+          "description": "Quickly add item to kitchen",
+          "action": "add-item",
+          "params": { "room": "kitchen", "category": "prompt" },
+          "icon": "plus-circle",
+          "hotkey": "k"
+        },
+        {
+          "id": "ai_enhance_room",
+          "name": "AI Enhance Current Room",
+          "description": "Ask AI to enhance current room data",
+          "action": "ai-enhance",
+          "icon": "sparkles",
+          "hotkey": "e"
+        },
+        {
+          "id": "take_room_photo",
+          "name": "Analyze Room Photo",
+          "description": "Take/upload photo for AI analysis",
+          "action": "take-photo",
+          "icon": "camera",
+          "hotkey": "p"
+        }
+      ]
+    },
+    
+    "changeLog": [
+      {
+        "timestamp": "2025-01-05T17:45:00Z",
+        "user": "ai",
+        "action": "create",
+        "path": "floors.first.rooms.kitchen.categories.appliances.items.coffee_maker",
+        "newValue": { "brand": "Breville", "model": "Barista Express" },
+        "notes": "Identified from uploaded kitchen photo"
+      },
+      {
+        "timestamp": "2025-01-05T16:30:00Z", 
+        "user": "user",
+        "action": "update",
+        "path": "floors.first.rooms.home_office.categories.furniture.items.desk",
+        "oldValue": { "height": "estimated 30 inches" },
+        "newValue": { "height": "adjustable 28-48 inches", "brand": "UPLIFT" },
+        "notes": "User corrected AI estimate with actual specs"
+      }
+    ]
+  },
+  
+  "data": {
+    "house_info": {
+      "address": "123 Maple Street",
+      "city": "Springfield",
+      "state": "IL",
+      "zip": "62704",
+      "built": 1998,
+      "size_sqft": 2400,
+      "lot_size": "0.25 acres", 
+      "style": "Colonial",
+      "bedrooms": 3,
+      "bathrooms": 2.5,
+      "garage_spaces": 2
+    },
+    
+    "floors": {
+      "first": {
+        "ceiling_height": "9 feet",
+        "flooring": {
+          "kitchen": "tile",
+          "living_areas": "hardwood",
+          "bedrooms": "carpet", 
+          "bathrooms": "tile"
+        },
+        "rooms": {
+          "kitchen": {
+            "size_sqft": 200,
+            "dimensions": "12x16",
+            "windows": 2,
+            "outlets": 8,
+            "categories": {
+              "appliances": {
+                "items": {
+                  "refrigerator": {
+                    "brand": "Samsung",
+                    "model": "RF28T5101SR",
+                    "type": "french door",
+                    "size": "28 cu ft",
+                    "purchased": "2023-03-15",
+                    "warranty_expires": "2025-03-15",
+                    "energy_rating": "Energy Star"
+                  },
+                  "stove": {
+                    "brand": "GE",
+                    "model": "JGS750SPSS", 
+                    "type": "gas range",
+                    "purchased": "2022-08-10",
+                    "features": ["convection", "self-cleaning"]
+                  },
+                  "dishwasher": {
+                    "brand": "Bosch",
+                    "model": "SHPM78W55N",
+                    "type": "built-in",
+                    "purchased": "2022-08-10"
+                  },
+                  "microwave": {
+                    "brand": "Panasonic",
+                    "type": "over-range",
+                    "wattage": 1000
+                  },
+                  "coffee_maker": {
+                    "brand": "Breville",
+                    "model": "Barista Express",
+                    "type": "espresso machine",
+                    "purchased": "2024-12-15"
+                  }
+                }
+              },
+              "cookware": {
+                "items": {
+                  "pots_pans": ["cast iron skillet", "stainless steel set", "non-stick pan", "dutch oven"],
+                  "bakeware": ["sheet pans", "muffin tin", "cake pans", "casserole dishes"],
+                  "utensils": ["knife set", "cutting boards", "mixing bowls", "measuring cups"]
+                }
+              },
+              "food_storage": {
+                "items": {
+                  "pantry_items": ["pasta", "rice", "canned goods", "spices", "oils"],
+                  "frozen": ["vegetables", "meat", "ice cream"],
+                  "fresh": ["produce", "dairy", "leftovers"]
+                }
+              }
+            }
+          },
+          
+          "living_room": {
+            "size_sqft": 320,
+            "dimensions": "16x20",
+            "windows": 3,
+            "fireplace": true,
+            "categories": {
+              "furniture": {
+                "items": {
+                  "sofa": {
+                    "brand": "West Elm",
+                    "model": "Andes Sectional",
+                    "color": "navy",
+                    "material": "fabric",
+                    "purchased": "2023-01-20"
+                  },
+                  "coffee_table": {
+                    "material": "reclaimed wood",
+                    "style": "rustic modern"
+                  },
+                  "armchair": {
+                    "brand": "CB2",
+                    "color": "charcoal",
+                    "material": "leather"
+                  }
+                }
+              },
+              "electronics": {
+                "items": {
+                  "tv": {
+                    "brand": "LG",
+                    "model": "OLED55C1PUB",
+                    "size": "55 inch",
+                    "type": "OLED",
+                    "purchased": "2023-06-10",
+                    "smart_features": true
+                  },
+                  "sound_system": {
+                    "brand": "Sonos",
+                    "model": "Arc + Sub",
+                    "type": "soundbar with subwoofer"
+                  },
+                  "streaming_devices": ["Apple TV", "Nintendo Switch"],
+                  "smart_speaker": {
+                    "brand": "Amazon",
+                    "model": "Echo Dot",
+                    "generation": "5th"
+                  }
+                }
+              },
+              "decor": {
+                "items": {
+                  "artwork": ["abstract painting", "family photos", "botanical prints"],
+                  "plants": ["fiddle leaf fig", "snake plant", "pothos"],
+                  "lighting": ["floor lamp", "table lamps", "string lights"]
+                }
+              }
+            }
+          },
+          
+          "master_bedroom": {
+            "size_sqft": 280,
+            "dimensions": "14x20",
+            "windows": 2,
+            "walk_in_closet": true,
+            "categories": {
+              "furniture": {
+                "items": {
+                  "bed": {
+                    "size": "king",
+                    "frame_material": "wood",
+                    "headboard": "upholstered"
+                  },
+                  "nightstands": {
+                    "count": 2,
+                    "material": "wood",
+                    "style": "modern"
+                  },
+                  "dresser": {
+                    "size": "6-drawer",
+                    "material": "oak"
+                  }
+                }
+              },
+              "bedding": {
+                "items": {
+                  "mattress": {
+                    "brand": "Purple",
+                    "model": "Purple 3",
+                    "size": "king",
+                    "purchased": "2022-05-15"
+                  },
+                  "sheets": ["cotton percale", "linen", "flannel"],
+                  "pillows": ["memory foam", "down alternative"],
+                  "comforter": "down alternative king"
+                }
+              },
+              "electronics": {
+                "items": {
+                  "alarm_clock": "smart alarm with sunrise simulation",
+                  "phone_chargers": ["wireless charging pad", "USB-C cable"],
+                  "air_purifier": {
+                    "brand": "Dyson",
+                    "model": "Pure Cool"
+                  }
+                }
+              }
+            }
+          },
+          
+          "home_office": {
+            "size_sqft": 150,
+            "dimensions": "10x15",
+            "windows": 1,
+            "built_in_shelves": true,
+            "categories": {
+              "furniture": {
+                "items": {
+                  "desk": {
+                    "brand": "UPLIFT",
+                    "type": "standing desk",
+                    "size": "60x30",
+                    "height": "adjustable 28-48 inches"
+                  },
+                  "chair": {
+                    "brand": "Herman Miller",
+                    "model": "Aeron",
+                    "size": "B"
+                  },
+                  "bookshelf": {
+                    "material": "built-in oak",
+                    "shelves": 8
+                  }
+                }
+              },
+              "electronics": {
+                "items": {
+                  "computer": {
+                    "brand": "Apple",
+                    "model": "MacBook Pro M2",
+                    "size": "16 inch",
+                    "year": 2023
+                  },
+                  "monitors": {
+                    "primary": {
+                      "brand": "Dell",
+                      "model": "U2720Q",
+                      "size": "27 inch",
+                      "resolution": "4K"
+                    },
+                    "secondary": {
+                      "brand": "Dell", 
+                      "model": "U2720Q",
+                      "size": "27 inch",
+                      "resolution": "4K"
+                    }
+                  },
+                  "printer": {
+                    "brand": "HP",
+                    "model": "OfficeJet Pro",
+                    "type": "all-in-one"
+                  },
+                  "webcam": {
+                    "brand": "Logitech",
+                    "model": "Brio 4K"
+                  }
+                }
+              },
+              "office_supplies": {
+                "items": {
+                  "storage": ["filing cabinet", "desk organizers", "paper trays"],
+                  "supplies": ["pens", "paper", "notebooks", "sticky notes"],
+                  "reference": ["books", "manuals", "binders"]
+                }
+              }
+            }
+          },
+          
+          "garage": {
+            "size_sqft": 480,
+            "dimensions": "20x24", 
+            "bays": 2,
+            "categories": {
+              "vehicles": {
+                "items": {
+                  "car_1": {
+                    "make": "Toyota",
+                    "model": "Camry", 
+                    "year": 2021,
+                    "color": "silver"
+                  },
+                  "car_2": {
+                    "make": "Honda",
+                    "model": "CR-V",
+                    "year": 2019,
+                    "color": "blue"
+                  }
+                }
+              },
+              "tools": {
+                "items": {
+                  "hand_tools": ["screwdrivers", "hammers", "wrenches", "pliers"],
+                  "power_tools": ["drill", "circular saw", "orbital sander"],
+                  "lawn_tools": ["mower", "trimmer", "leaf blower", "rake"]
+                }
+              },
+              "storage": {
+                "items": {
+                  "shelving": "metal utility shelves",
+                  "bins": "plastic storage containers",
+                  "seasonal": ["holiday decorations", "camping gear", "sports equipment"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    
+    "systems": {
+      "hvac": {
+        "main_unit": {
+          "brand": "Carrier",
+          "model": "Infinity 19VS",
+          "type": "heat pump",
+          "installed": "2020-04-15",
+          "warranty_expires": "2030-04-15",
+          "last_service": "2024-09-15",
+          "filter_type": "MERV 11",
+          "filter_replacement_frequency": "3 months"
+        },
+        "thermostat": {
+          "brand": "Honeywell",
+          "model": "T6 Pro",
+          "type": "programmable",
+          "zones": 1
+        },
+        "ductwork": {
+          "material": "insulated metal",
+          "last_cleaning": "2023-05-20"
+        }
+      },
+      
+      "electrical": {
+        "panel": {
+          "brand": "Square D",
+          "type": "200 amp",
+          "circuits": 24,
+          "installed": "1998"
+        },
+        "outlets": {
+          "kitchen": { "count": 8, "type": "GFCI" },
+          "bathrooms": { "count": 4, "type": "GFCI" },
+          "bedrooms": { "count": 12, "type": "standard" },
+          "living_areas": { "count": 16, "type": "standard" }
+        }
+      },
+      
+      "plumbing": {
+        "water_heater": {
+          "brand": "Bradford White",
+          "type": "gas",
+          "capacity": "50 gallon",
+          "installed": "2021-03-10",
+          "warranty_expires": "2027-03-10"
+        },
+        "main_shutoff": "street side, near meter",
+        "pipes": {
+          "supply": "copper",
+          "drain": "PVC"
+        }
+      },
+      
+      "security": {
+        "alarm_system": {
+          "brand": "ADT",
+          "monitoring": true,
+          "sensors": {
+            "doors": 4,
+            "windows": 8,
+            "motion": 3,
+            "glass_break": 2
+          }
+        },
+        "cameras": {
+          "doorbell": {
+            "brand": "Ring",
+            "model": "Video Doorbell Pro"
+          },
+          "driveway": {
+            "brand": "Arlo",
+            "model": "Pro 4"
+          }
+        },
+        "smart_locks": {
+          "front_door": {
+            "brand": "August",
+            "model": "Smart Lock Pro"
+          }
+        }
+      }
+    },
+    
+    "maintenance": {
+      "schedule": {
+        "hvac_filter": {
+          "frequency": "3 months",
+          "last_done": "2024-12-15",
+          "next_due": "2025-03-15"
+        },
+        "hvac_service": {
+          "frequency": "annual",
+          "last_done": "2024-09-15",
+          "next_due": "2025-09-15"
+        },
+        "gutter_cleaning": {
+          "frequency": "bi-annual",
+          "last_done": "2024-10-20",
+          "next_due": "2025-04-20"
+        }
+      },
+      "contractors": {
+        "hvac": {
+          "company": "ABC Heating & Air",
+          "phone": "(555) 123-4567",
+          "contact": "Mike Johnson"
+        },
+        "plumbing": {
+          "company": "Quick Fix Plumbing",
+          "phone": "(555) 987-6543",
+          "contact": "Sarah Chen"
+        },
+        "electrical": {
+          "company": "Bright Electric", 
+          "phone": "(555) 456-7890",
+          "contact": "Dave Martinez"
+        }
+      }
+    }
+  }
+}

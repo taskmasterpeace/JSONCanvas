@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { UnfoldVertical, FoldVertical, Search, Info, ListTree, LayoutGrid, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { usePerformanceMetrics } from '@/hooks/use-performance';
+import { fastCloneJson, addPropertyAtPath, addItemAtPath, deleteAtPath, renamePropertyAtPath } from '@/lib/json-utils';
 
 
 interface JsonTreeEditorProps {
@@ -19,13 +21,14 @@ interface JsonTreeEditorProps {
   getApiKey: () => string | null;
 }
 
-export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: JsonTreeEditorProps) {
+export const JsonTreeEditor = React.memo(function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: JsonTreeEditorProps) {
   const [expansionTrigger, setExpansionTrigger] = useState<ExpansionTrigger | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredPath, setHoveredPath] = useState<JsonPath | null>(null);
   const [viewMode, setViewMode] = useState<'tree' | 'cards'>('tree');
   const [cardViewPath, setCardViewPath] = useState<JsonPath>([]);
   const { toast } = useToast();
+  const performanceMetrics = usePerformanceMetrics('JsonTreeEditor');
 
   const getCurrentCardData = useCallback((): JsonValue | undefined => {
     let currentData = jsonData;
@@ -167,7 +170,20 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
   }, [jsonData, onJsonChange, cardViewPath, viewMode, toast]);
 
   const handleAddProperty = useCallback((path: JsonPath, key: string, value: JsonValue) => {
-    const newJson = JSON.parse(JSON.stringify(jsonData)); 
+    try {
+      const newJson = addPropertyAtPath(jsonData, cardViewPath.concat(path), key, value);
+      onJsonChange(newJson);
+    } catch (error) {
+      toast({
+        title: "Cannot Add Property", 
+        description: error instanceof Error ? error.message : "Failed to add property.",
+        variant: "destructive"
+      });
+    }
+  }, [jsonData, onJsonChange, cardViewPath, toast]);
+
+  const handleAddPropertyLegacy = useCallback((path: JsonPath, key: string, value: JsonValue) => {
+    const newJson = fastCloneJson(jsonData); 
     let baseDataRef = newJson;
 
     if (viewMode === 'cards' && cardViewPath.length > 0) {
@@ -568,5 +584,5 @@ export function JsonTreeEditor({ jsonData, onJsonChange, title, getApiKey }: Jso
       </Card>
     </TooltipProvider>
   );
-}
+});
 

@@ -1,0 +1,264 @@
+{
+  "presidium": {
+    "name": "Claude Code Configuration Hub",
+    "version": "1.0.0",
+    "description": "Complete configuration and setup guide for Claude Code integration with JSON Canvas AI",
+    "lastUpdated": "2025-01-05T00:00:00Z"
+  },
+  "claudeCodeSetup": {
+    "requirements": {
+      "claudeCodeCLI": "Latest version from https://claude.ai/code",
+      "nodeVersion": ">=18.0.0",
+      "npmVersion": ">=8.0.0",
+      "operatingSystem": "Windows 10/11, macOS, or Linux"
+    },
+    "installation": {
+      "steps": [
+        "Install Claude Code CLI from official website",
+        "Verify installation with 'claude --version'",
+        "Set up workspace in project directory",
+        "Configure environment variables",
+        "Initialize project with 'claude init' if needed"
+      ]
+    },
+    "keyCommands": {
+      "help": "/help - Get help with Claude Code",
+      "feedback": "Report issues at https://github.com/anthropics/claude-code/issues",
+      "slashCommands": {
+        "/help": "Show available commands",
+        "/clear": "Clear conversation history",
+        "/exit": "Exit Claude Code session"
+      }
+    }
+  },
+  "projectConfiguration": {
+    "jsonCanvasAI": {
+      "name": "JSON Canvas AI",
+      "type": "Next.js Application",
+      "port": 9002,
+      "framework": "Next.js 15.2.3",
+      "language": "TypeScript",
+      "styling": "TailwindCSS + shadcn/ui",
+      "aiIntegration": "Google Genkit"
+    },
+    "environmentVariables": {
+      "required": {
+        "GOOGLE_AI_API_KEY": {
+          "description": "Google AI API key for AI features",
+          "example": "your_google_ai_key_here",
+          "source": "Google AI Studio"
+        }
+      },
+      "optional": {
+        "OPENROUTER_API_KEY": {
+          "description": "OpenRouter API key for alternative AI providers",
+          "example": "sk-or-v1-...",
+          "source": "https://openrouter.ai"
+        },
+        "REQUESTY_API_KEY": {
+          "description": "Requesty API key for 150+ AI models",
+          "example": "req_...",
+          "source": "https://requesty.ai"
+        },
+        "MODEL_PROVIDER": {
+          "description": "Switch between AI providers",
+          "options": ["google", "openrouter", "requesty"],
+          "default": "google"
+        }
+      }
+    }
+  },
+  "developmentWorkflow": {
+    "commonCommands": {
+      "development": "npm run dev",
+      "build": "npm run build",
+      "test": "npm run test",
+      "testWatch": "npm run test:watch",
+      "testCoverage": "npm run test:coverage",
+      "lint": "npm run lint",
+      "typeCheck": "npm run typecheck",
+      "genkitDev": "npm run genkit:dev",
+      "genkitWatch": "npm run genkit:watch"
+    },
+    "claudeCodeIntegration": {
+      "bestPractices": [
+        "Use TodoWrite tool for complex multi-step tasks",
+        "Always read files before editing them",
+        "Use batch tool calls for better performance",
+        "Prefer editing existing files over creating new ones",
+        "Run tests after making changes",
+        "Check lint and typecheck before committing"
+      ],
+      "toolPreferences": {
+        "fileSearch": "Use Task tool for complex searches",
+        "codeReview": "Use Read tool to understand before editing",
+        "testing": "Always run 'npm run test' after changes",
+        "performance": "Use Bash tool for parallel operations"
+      }
+    }
+  },
+  "architectureOverview": {
+    "coreStructure": {
+      "appDirectory": "src/app/ - Next.js App Router structure",
+      "components": "src/components/json-canvas/ - Main UI components",
+      "aiFlows": "src/ai/flows/ - Genkit AI processing functions",
+      "utilities": "src/lib/ - Utility functions and helpers",
+      "types": "src/components/json-canvas/types.ts - TypeScript definitions",
+      "styling": "src/app/globals.css - Global styles and Tailwind"
+    },
+    "keyComponents": {
+      "JsonTreeEditor": {
+        "file": "src/components/json-canvas/json-tree-editor.tsx",
+        "purpose": "Main JSON editing interface with tree/card views",
+        "features": ["Interactive editing", "Search", "AI enhancement"]
+      },
+      "DocumentSidebar": {
+        "file": "src/components/json-canvas/document-sidebar.tsx",
+        "purpose": "Multi-document management",
+        "features": ["Document switching", "Add/rename/delete", "Auto-save"]
+      },
+      "Header": {
+        "file": "src/components/json-canvas/header.tsx",
+        "purpose": "Top navigation and controls",
+        "features": ["Theme toggle", "Model selection", "Import/export"]
+      }
+    },
+    "aiFeatures": {
+      "textToJson": "convert-text-to-json-flow.ts - Natural language to JSON",
+      "fieldEnhancement": "enhance-json-field.ts - AI-powered field improvement",
+      "jsonFormatting": "format-json-flow.ts - JSON formatting and correction",
+      "multiProvider": "Support for Google AI, OpenRouter, Requesty"
+    }
+  },
+  "performanceOptimizations": {
+    "reactOptimizations": {
+      "memoization": "72 instances of React.memo, useMemo, useCallback",
+      "virtualization": "react-window for large JSON arrays",
+      "performanceMonitoring": "Custom usePerformanceMetrics hook"
+    },
+    "dataManagement": {
+      "localStorage": "Efficient local storage with error handling",
+      "jsonProcessing": "Fast JSON cloning and manipulation utilities",
+      "memoryManagement": "Proper cleanup of resources and event listeners"
+    }
+  },
+  "testingStrategy": {
+    "framework": {
+      "testRunner": "Jest with React Testing Library",
+      "coverage": "70% threshold (currently not met at 3.75%)",
+      "environment": "jsdom for DOM testing"
+    },
+    "currentTests": {
+      "totalFiles": 7,
+      "totalTests": 92,
+      "coverageGoal": "Increase coverage to meet 70% threshold",
+      "testTypes": ["Unit tests", "Component tests", "Utility tests"]
+    },
+    "improvementAreas": [
+      "Add integration tests for AI flows",
+      "Increase component test coverage",
+      "Add end-to-end tests with Playwright",
+      "Test error boundaries and edge cases"
+    ]
+  },
+  "securityBestPractices": {
+    "apiKeyManagement": {
+      "storage": "Local storage with error handling",
+      "validation": "Input validation for all user inputs",
+      "environment": "Environment variables for sensitive data"
+    },
+    "inputValidation": {
+      "fileUploads": "File type and size validation",
+      "jsonParsing": "Try-catch blocks with detailed error messages",
+      "userInput": "Sanitization and validation throughout"
+    },
+    "errorHandling": {
+      "errorBoundaries": "React Error Boundaries prevent crashes",
+      "gracefulDegradation": "Fallback UI for errors",
+      "logging": "Proper error logging without exposing sensitive data"
+    }
+  },
+  "claudeCodeTips": {
+    "effectivePrompting": [
+      "Be specific about what files to read/edit",
+      "Use TodoWrite for complex multi-step tasks",
+      "Batch multiple tool calls in single messages",
+      "Always read files before attempting to edit them"
+    ],
+    "toolUsage": {
+      "Read": "Always use before editing files",
+      "Edit": "Prefer over Write for existing files",
+      "Bash": "Use for running commands and tests",
+      "Glob": "Find files by pattern",
+      "Grep": "Search for code patterns"
+    },
+    "bestResults": [
+      "Provide context about the goal",
+      "Specify exact file paths when known",
+      "Ask for explanations when needed",
+      "Request testing after changes"
+    ]
+  },
+  "troubleshooting": {
+    "commonIssues": {
+      "lowTestCoverage": {
+        "problem": "Test coverage below 70% threshold",
+        "solution": "Run 'npm run test:coverage' and add tests for uncovered code"
+      },
+      "buildErrors": {
+        "problem": "TypeScript or build errors",
+        "solution": "Run 'npm run typecheck' and 'npm run lint' to identify issues"
+      },
+      "aiFeatureNotWorking": {
+        "problem": "AI features not responding",
+        "solution": "Check API keys in .env file and localStorage"
+      },
+      "performanceIssues": {
+        "problem": "Slow rendering or memory issues",
+        "solution": "Check React DevTools Profiler and performance metrics"
+      }
+    },
+    "debuggingSteps": [
+      "Check console for errors",
+      "Verify environment variables",
+      "Test with minimal data set",
+      "Use React DevTools for component inspection",
+      "Check network tab for API calls"
+    ]
+  },
+  "futureEnhancements": {
+    "priorityFeatures": [
+      "Increase test coverage to 70%+",
+      "Add end-to-end testing",
+      "Implement more AI providers",
+      "Add real-time collaboration",
+      "Improve accessibility features"
+    ],
+    "technicalDebt": [
+      "Break down large components (page.tsx)",
+      "Add more comprehensive error handling",
+      "Improve component documentation",
+      "Add performance monitoring for production"
+    ]
+  },
+  "resources": {
+    "documentation": {
+      "claudeCode": "https://docs.anthropic.com/en/docs/claude-code",
+      "nextjs": "https://nextjs.org/docs",
+      "genkit": "https://firebase.google.com/docs/genkit",
+      "tailwind": "https://tailwindcss.com/docs",
+      "shadcnui": "https://ui.shadcn.com"
+    },
+    "aiProviders": {
+      "googleAI": "https://ai.google.dev",
+      "openrouter": "https://openrouter.ai",
+      "requesty": "https://requesty.ai"
+    },
+    "development": {
+      "typescript": "https://www.typescriptlang.org/docs",
+      "react": "https://react.dev",
+      "jest": "https://jestjs.io/docs/getting-started",
+      "testingLibrary": "https://testing-library.com/docs/react-testing-library/intro"
+    }
+  }
+}

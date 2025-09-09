@@ -4,7 +4,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, LayoutDashboard, Sun, Moon } from 'lucide-react';
+import { NavigationLandmark, VisuallyHidden } from '@/components/ui/accessibility';
+import { FileUp, FileDown, Undo2, Redo2, Settings, FileJson2, Github, ClipboardPaste, LayoutDashboard, Sun, Moon, Shield } from 'lucide-react';
 import { ModelSelector } from './model-selector';
 
 interface HeaderProps {
@@ -17,6 +18,7 @@ interface HeaderProps {
   onOpenApiKeyDialog: () => void;
   onOpenEditEntireJsonDialog: () => void;
   onOpenQuickImportDialog: () => void;
+  onOpenSchemaValidationDialog: () => void;
   onToggleSidebar: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
@@ -35,6 +37,7 @@ export function Header({
   onOpenApiKeyDialog,
   onOpenEditEntireJsonDialog,
   onOpenQuickImportDialog,
+  onOpenSchemaValidationDialog,
   onToggleSidebar,
   theme,
   onToggleTheme,
@@ -46,13 +49,25 @@ export function Header({
 
   return (
     <TooltipProvider>
-      <header className="bg-card border-b border-border p-3 shadow-sm sticky top-0 z-50">
+      <NavigationLandmark label="Main application navigation">
+        <header 
+          className="bg-card border-b border-border p-3 shadow-sm sticky top-0 z-50"
+          role="banner"
+        >
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={onToggleSidebar} className="mr-2">
-                  <LayoutDashboard className="h-5 w-5" />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={onToggleSidebar} 
+                  className="mr-2"
+                  aria-label="Toggle document sidebar"
+                  aria-expanded={false} // This should be dynamic based on sidebar state
+                >
+                  <LayoutDashboard className="h-5 w-5" aria-hidden="true" />
+                  <VisuallyHidden>Toggle Document Sidebar</VisuallyHidden>
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Toggle Document Sidebar</p></TooltipContent>
@@ -68,19 +83,31 @@ export function Header({
               </svg>
             <h1 className="text-2xl font-semibold text-primary">JSON Canvas AI</h1>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2" role="toolbar" aria-label="Application actions">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={onOpenQuickImportDialog}>
-                  <ClipboardPaste className="h-5 w-5" /> 
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={onOpenQuickImportDialog}
+                  aria-label="Quick import text to new document"
+                >
+                  <ClipboardPaste className="h-5 w-5" aria-hidden="true" /> 
+                  <VisuallyHidden>Quick Import</VisuallyHidden>
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Quick Import to New Document (Paste Text)</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={() => importInputRef.current?.click()}>
-                  <FileUp className="h-5 w-5" />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => importInputRef.current?.click()}
+                  aria-label="Import JSON file to new document"
+                >
+                  <FileUp className="h-5 w-5" aria-hidden="true" />
+                  <VisuallyHidden>Import File</VisuallyHidden>
                   <input type="file" accept=".json,application/json" ref={importInputRef} onChange={onImport} className="hidden" />
                 </Button>
               </TooltipTrigger>
@@ -88,32 +115,72 @@ export function Header({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={onExport}>
-                  <FileDown className="h-5 w-5" />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={onExport}
+                  aria-label="Export active document as JSON file"
+                >
+                  <FileDown className="h-5 w-5" aria-hidden="true" />
+                  <VisuallyHidden>Export File</VisuallyHidden>
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Export Active Document</p></TooltipContent>
             </Tooltip>
              <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={onOpenEditEntireJsonDialog}>
-                  <FileJson2 className="h-5 w-5" />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={onOpenEditEntireJsonDialog}
+                  aria-label="Edit entire JSON document with raw editor and AI"
+                >
+                  <FileJson2 className="h-5 w-5" aria-hidden="true" />
+                  <VisuallyHidden>Edit Entire JSON</VisuallyHidden>
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Edit Entire Active Document (Raw + AI)</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={onUndo} disabled={!canUndo}>
-                  <Undo2 className="h-5 w-5" />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={onOpenSchemaValidationDialog}
+                  aria-label="Open JSON schema validation dialog"
+                >
+                  <Shield className="h-5 w-5" aria-hidden="true" />
+                  <VisuallyHidden>Schema Validation</VisuallyHidden>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>JSON Schema Validation</p></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={onUndo} 
+                  disabled={!canUndo}
+                  aria-label={canUndo ? "Undo last action" : "No actions to undo"}
+                >
+                  <Undo2 className="h-5 w-5" aria-hidden="true" />
+                  <VisuallyHidden>Undo</VisuallyHidden>
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Undo (Ctrl+Z) in Active Document</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={onRedo} disabled={!canRedo}>
-                  <Redo2 className="h-5 w-5" />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={onRedo} 
+                  disabled={!canRedo}
+                  aria-label={canRedo ? "Redo last action" : "No actions to redo"}
+                >
+                  <Redo2 className="h-5 w-5" aria-hidden="true" />
+                  <VisuallyHidden>Redo</VisuallyHidden>
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Redo (Ctrl+Y) in Active Document</p></TooltipContent>
@@ -121,16 +188,28 @@ export function Header({
             <ModelSelector value={selectedModel} onChange={onModelChange} disabled={!hasApiKey} />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={onToggleTheme}>
-                  {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={onToggleTheme}
+                  aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+                >
+                  {theme === 'light' ? <Moon className="h-5 w-5" aria-hidden="true" /> : <Sun className="h-5 w-5" aria-hidden="true" />}
+                  <VisuallyHidden>Toggle Theme</VisuallyHidden>
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Switch to {theme === 'light' ? 'Dark' : 'Light'} Mode</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={onOpenApiKeyDialog}>
-                  <Settings className="h-5 w-5" />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={onOpenApiKeyDialog}
+                  aria-label="Open API key settings dialog"
+                >
+                  <Settings className="h-5 w-5" aria-hidden="true" />
+                  <VisuallyHidden>API Settings</VisuallyHidden>
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Google AI API Key</p></TooltipContent>
@@ -148,6 +227,7 @@ export function Header({
           </div>
         </div>
       </header>
+      </NavigationLandmark>
     </TooltipProvider>
   );
 }

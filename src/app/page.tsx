@@ -7,12 +7,15 @@ import { Header } from '@/components/json-canvas/header';
 import { ApiKeyDialog } from '@/components/json-canvas/api-key-dialog';
 import { EditEntireJsonDialog } from '@/components/json-canvas/edit-entire-json-dialog';
 import { QuickImportDialog } from '@/components/json-canvas/quick-import-dialog';
+import { SchemaValidationDialog } from '@/components/json-canvas/schema-validation-dialog';
 import { DocumentSidebar } from '@/components/json-canvas/document-sidebar';
+import { LoadingProvider } from '@/contexts/loading-context';
 import type { JsonValue, JsonObject, Document } from '@/components/json-canvas/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 import Image from 'next/image';
 import { ClipboardPaste, LayoutDashboard } from 'lucide-react';
 
@@ -98,6 +101,7 @@ export default function Home() {
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
   const [isEditEntireJsonDialogOpen, setIsEditEntireJsonDialogOpen] = useState(false);
   const [isQuickImportDialogOpen, setIsQuickImportDialogOpen] = useState(false);
+  const [isSchemaValidationDialogOpen, setIsSchemaValidationDialogOpen] = useState(false);
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -125,10 +129,10 @@ export default function Home() {
         localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, 'dark');
       } else {
         setTheme('light');
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, 'light');
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem(LOCAL_STORAGE_KEYS.THEME, 'light');
+      }
     }
-  }
 
     const storedModel = localStorage.getItem(LOCAL_STORAGE_KEYS.MODEL);
     if (storedModel) {
@@ -278,8 +282,11 @@ export default function Home() {
         if (doc.id === activeDocumentId) {
           const newHistory = fromHistory ? doc.history : [...doc.history.slice(0, doc.currentHistoryIndex + 1), newJson];
           const newIndex = fromHistory ? doc.currentHistoryIndex : newHistory.length - 1;
-          const cappedHistory = newHistory.length > 50 ? newHistory.slice(newHistory.length - 50) : newHistory;
-          const cappedIndex = newIndex >= newHistory.length - cappedHistory.length ? newIndex - (newHistory.length - cappedHistory.length) : 0;
+          
+          // Fix: Properly handle history capping to prevent negative indices
+          const cappedHistory = newHistory.length > 50 ? newHistory.slice(-50) : newHistory;
+          const historyOffset = newHistory.length - cappedHistory.length;
+          const cappedIndex = Math.max(0, Math.min(newIndex - historyOffset, cappedHistory.length - 1));
 
           return { ...doc, data: newJson, history: cappedHistory, currentHistoryIndex: cappedIndex };
         }
@@ -304,22 +311,99 @@ export default function Home() {
 
   const handleFileImportToNewDocument = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const importedJson = JSON.parse(e.target?.result as string);
-          const newDoc = createNewDocument(importedJson, file.name.replace(/\.json$/i, ''));
-          setDocuments(prevDocs => [...prevDocs, newDoc]);
-          setActiveDocumentId(newDoc.id);
-          toast({ title: 'Document Imported', description: `"${newDoc.name}" loaded successfully.` });
-        } catch (error) {
-          toast({ title: 'Import Error', description: 'Invalid JSON file.', variant: 'destructive' });
-        }
-      };
-      reader.readAsText(file);
-      event.target.value = ''; 
+    if (!file) return;
+
+    // Validate file type and size
+    if (!file.type.includes('json') && !file.name.toLowerCase().endsWith('.json')) {
+      toast({ 
+        title: 'Invalid File Type', 
+        description: 'Please select a .json file. Other file types are not supported.',
+        variant: 'destructive' 
+      });
+      event.target.value = '';
+      return;
     }
+
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      toast({ 
+        title: 'File Too Large', 
+        description: `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 50MB limit.`,
+        variant: 'destructive' 
+      });
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    
+    reader.onerror = () => {
+      toast({ 
+        title: 'File Read Error', 
+        description: 'Could not read the selected file. Please try again.',
+        variant: 'destructive' 
+      });
+      event.target.value = '';
+    };
+    
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        if (!content || content.trim() === '') {
+          toast({ 
+            title: 'Empty File', 
+            description: 'The selected file appears to be empty.',
+            variant: 'destructive' 
+          });
+          return;
+        }
+
+        const importedJson = JSON.parse(content);
+        
+        // Additional validation
+        if (importedJson === undefined) {
+          toast({ 
+            title: 'Invalid JSON', 
+            description: 'File contains undefined value which is not valid JSON.',
+            variant: 'destructive' 
+          });
+          return;
+        }
+
+        const newDoc = createNewDocument(importedJson, file.name.replace(/\.json$/i, ''));
+        setDocuments(prevDocs => [...prevDocs, newDoc]);
+        setActiveDocumentId(newDoc.id);
+        
+        const fileSize = (file.size / 1024).toFixed(1);
+        toast({ 
+          title: 'Document Imported', 
+          description: `"${newDoc.name}" (${fileSize} KB) loaded successfully.` 
+        });
+      } catch (error) {
+        console.error('JSON parse error:', error);
+        
+        let errorMessage = 'Invalid JSON format.';
+        if (error instanceof SyntaxError) {
+          const match = error.message.match(/position (\d+)/);
+          if (match) {
+            errorMessage = `JSON syntax error at position ${match[1]}. Check for missing quotes, commas, or brackets.`;
+          } else {
+            errorMessage = `JSON syntax error: ${error.message}`;
+          }
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        
+        toast({ 
+          title: 'JSON Parse Error', 
+          description: errorMessage,
+          variant: 'destructive' 
+        });
+      }
+      
+      event.target.value = ''; // Always clear input
+    };
+    
+    reader.readAsText(file);
   };
   
   const handleQuickImportToNewDocument = (newJson: JsonValue, notes?: string) => {
@@ -336,20 +420,39 @@ export default function Home() {
       toast({ title: 'No Active Document', description: 'Please select a document to export.', variant: 'destructive' });
       return;
     }
+    
+    let url: string | null = null;
+    let link: HTMLAnchorElement | null = null;
+    
     try {
       const jsonString = JSON.stringify(activeDocument.data, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${activeDocument.name.replace(/[^a-z0-9_.-]/gi, '_') || 'document'}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      url = URL.createObjectURL(blob);
+      
+      link = document.createElement('a');
+      link.href = url;
+      link.download = `${activeDocument.name.replace(/[^a-z0-9_.-]/gi, '_') || 'document'}.json`;
+      link.style.display = 'none'; // Hide the element
+      
+      document.body.appendChild(link);
+      link.click();
+      
       toast({ title: 'JSON Exported', description: `"${activeDocument.name}" saved successfully.` });
     } catch (error) {
-      toast({ title: 'Export Error', description: 'Could not export JSON.', variant: 'destructive' });
+      console.error('Export error:', error);
+      toast({ 
+        title: 'Export Error', 
+        description: error instanceof Error ? error.message : 'Could not export JSON.',
+        variant: 'destructive' 
+      });
+    } finally {
+      // Cleanup resources to prevent memory leaks
+      if (link && document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
     }
   };
   
@@ -456,7 +559,8 @@ export default function Home() {
     : [];
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <LoadingProvider>
+      <div className="flex flex-col min-h-screen bg-background">
       <Header
         onImport={handleFileImportToNewDocument}
         onExport={handleExport}
@@ -467,6 +571,7 @@ export default function Home() {
         onOpenApiKeyDialog={() => setIsApiKeyDialogOpen(true)}
         onOpenEditEntireJsonDialog={() => setIsEditEntireJsonDialogOpen(true)}
         onOpenQuickImportDialog={() => setIsQuickImportDialogOpen(true)}
+        onOpenSchemaValidationDialog={() => setIsSchemaValidationDialogOpen(true)}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -478,16 +583,18 @@ export default function Home() {
         hasApiKey={Boolean(apiKey)}
       />
       <div className="flex flex-1 overflow-hidden">
-        <DocumentSidebar
-          isOpen={isSidebarOpen}
-          documents={documents}
-          activeDocumentId={activeDocumentId}
-          onSelectDocument={handleSelectDocument}
-          onAddDocument={handleAddDocument}
-          onImportDocument={handleFileImportToNewDocument}
-          onRenameDocument={handleRenameDocument}
-          onDeleteDocument={handleDeleteDocument}
-        />
+        <ErrorBoundary>
+          <DocumentSidebar
+            isOpen={isSidebarOpen}
+            documents={documents}
+            activeDocumentId={activeDocumentId}
+            onSelectDocument={handleSelectDocument}
+            onAddDocument={handleAddDocument}
+            onImportDocument={handleFileImportToNewDocument}
+            onRenameDocument={handleRenameDocument}
+            onDeleteDocument={handleDeleteDocument}
+          />
+        </ErrorBoundary>
         <ScrollArea className="flex-grow">
           <main className="container mx-auto p-4">
             {!activeDocument && documents.length > 0 && ( 
@@ -561,12 +668,14 @@ export default function Home() {
                   </TabsList>
                   {topLevelKeys.map(key => (
                     <TabsContent key={key} value={key}>
-                      <JsonTreeEditor
-                        jsonData={(currentJsonData as JsonObject)[key]}
-                        onJsonChange={(newSectionData) => handleSectionChange(key, newSectionData)}
-                        title={key}
-                        getApiKey={getApiKey}
-                      />
+                      <ErrorBoundary>
+                        <JsonTreeEditor
+                          jsonData={(currentJsonData as JsonObject)[key]}
+                          onJsonChange={(newSectionData) => handleSectionChange(key, newSectionData)}
+                          title={key}
+                          getApiKey={getApiKey}
+                        />
+                      </ErrorBoundary>
                     </TabsContent>
                   ))}
                 </Tabs>
@@ -584,12 +693,14 @@ export default function Home() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <JsonTreeEditor
-                            jsonData={currentJsonData}
-                            onJsonChange={handleJsonChange}
-                            getApiKey={getApiKey}
-                            title={activeDocument.name || "Root Value"}
-                        />
+                        <ErrorBoundary>
+                          <JsonTreeEditor
+                              jsonData={currentJsonData}
+                              onJsonChange={handleJsonChange}
+                              getApiKey={getApiKey}
+                              title={activeDocument.name || "Root Value"}
+                          />
+                        </ErrorBoundary>
                     </CardContent>
                 </Card>
               )
@@ -632,7 +743,16 @@ export default function Home() {
         onImport={handleQuickImportToNewDocument}
         getApiKey={getApiKey}
       />
+      {activeDocument && (
+        <SchemaValidationDialog
+          open={isSchemaValidationDialogOpen}
+          onOpenChange={setIsSchemaValidationDialogOpen}
+          jsonData={activeDocument.data}
+        />
+      )}
+
     </div>
+    </LoadingProvider>
   );
 }
 

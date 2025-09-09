@@ -4,6 +4,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Document } from './types';
 import { Button } from '@/components/ui/button';
+import { useConfirmation } from '@/components/ui/confirmation-dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -21,7 +22,7 @@ interface DocumentSidebarProps {
   onDeleteDocument: (docId: string) => void;
 }
 
-export function DocumentSidebar({
+export const DocumentSidebar = React.memo(function DocumentSidebar({
   isOpen,
   documents,
   activeDocumentId,
@@ -35,6 +36,7 @@ export function DocumentSidebar({
   const [renamingDocId, setRenamingDocId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const { confirm, ConfirmationComponent } = useConfirmation();
 
   useEffect(() => {
     if (renamingDocId && renameInputRef.current) {
@@ -59,6 +61,24 @@ export function DocumentSidebar({
   const handleCancelRename = () => {
     setRenamingDocId(null);
     setRenameValue('');
+  };
+
+  const handleDeleteWithConfirmation = (doc: Document) => {
+    const jsonSize = new Blob([JSON.stringify(doc.data)]).size;
+    const sizeText = jsonSize > 1024 ? `${(jsonSize / 1024).toFixed(1)} KB` : `${jsonSize} bytes`;
+    
+    confirm({
+      title: `Delete "${doc.name}"?`,
+      description: 'This action cannot be undone. All document data and history will be permanently lost.',
+      variant: 'destructive',
+      details: [
+        `Document size: ${sizeText}`,
+        `Version history: ${doc.history.length} versions`,
+        'All undo/redo history will be lost',
+        'Document will be removed from browser storage'
+      ],
+      onConfirm: () => onDeleteDocument(doc.id)
+    });
   };
   
   if (!isOpen) {
@@ -128,7 +148,7 @@ export function DocumentSidebar({
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" className={cn("h-6 w-6 p-0.5 text-destructive", activeDocumentId === doc.id && "hover:bg-destructive/80 text-primary-foreground")} onClick={(e) => { e.stopPropagation(); onDeleteDocument(doc.id); }}>
+                          <Button variant="ghost" size="icon" className={cn("h-6 w-6 p-0.5 text-destructive", activeDocumentId === doc.id && "hover:bg-destructive/80 text-primary-foreground")} onClick={(e) => { e.stopPropagation(); handleDeleteWithConfirmation(doc); }}>
                             <Trash2 size={14} />
                           </Button>
                         </TooltipTrigger>
@@ -143,7 +163,8 @@ export function DocumentSidebar({
         </ScrollArea>
         <p className="text-xs text-muted-foreground text-center p-1">Documents are auto-saved locally.</p>
       </aside>
+      {ConfirmationComponent}
     </TooltipProvider>
   );
-}
+});
 

@@ -31,38 +31,84 @@ const convertTextToJsonPrompt = ai.definePrompt({
   name: 'convertTextToJsonPrompt',
   input: {schema: ConvertTextToJsonInputSchema},
   output: {schema: ConvertTextToJsonOutputSchema},
-  prompt: `You are an expert data structuring AI. Your task is to convert the provided raw text into a valid, well-structured JSON object or array.
+  prompt: `<role>You are an expert data structuring AI specializing in converting arbitrary text into well-structured, semantic JSON representations. You excel at identifying patterns, relationships, and meaning in unstructured data.</role>
 
-Analyze the input text:
+<task>
+Convert the provided raw text into a valid, well-structured JSON object or array that best represents the information and maintains semantic meaning.
+</task>
+
+<input_text>
 {{{rawText}}}
+</input_text>
 
+<instructions>
 {{#if instructions}}
-Please follow these specific instructions for structuring the JSON:
 {{{instructions}}}
 {{else}}
-Consider the following general guidelines:
-- If the text appears to be a list of items, try to create a JSON array.
-- If the text resembles key-value pairs or a table, try to create a JSON object. For tabular data, use column headers as keys if identifiable, otherwise use generic keys like "column1", "column2".
-- If the text is unstructured, try to extract meaningful entities and relationships to form a JSON structure.
-- If the text is already partially JSON or malformed JSON, try to correct it and make it valid.
+Apply intelligent structural analysis based on content patterns and semantic meaning.
 {{/if}}
+</instructions>
 
-- Ensure all strings in the generated JSON are properly escaped.
-- Aim for a clean and human-readable JSON structure.
+<examples>
+<example>
+<input>John Doe, 30, Engineer
+Jane Smith, 25, Designer  
+Bob Johnson, 35, Manager</input>
+<output>
+{
+  "generatedJson": "[{\\"name\\": \\"John Doe\\", \\"age\\": 30, \\"occupation\\": \\"Engineer\\"}, {\\"name\\": \\"Jane Smith\\", \\"age\\": 25, \\"occupation\\": \\"Designer\\"}, {\\"name\\": \\"Bob Johnson\\", \\"age\\": 35, \\"occupation\\": \\"Manager\\"}]",
+  "notes": "Detected tabular data with implicit column structure: name, age, occupation. Converted to array of objects with semantic keys."
+}
+</output>
+</example>
 
-Return the generated JSON in the 'generatedJson' field. If you have any notes about ambiguities or assumptions made during conversion, include them in the 'notes' field.
-The output MUST be a valid JSON object with the fields "generatedJson" (string) and optionally "notes" (string).
-Do NOT return a markdown code block for the JSON, just the raw JSON string within the "generatedJson" field of the output object.
-Example of expected output format:
+<example>
+<input>Shopping list:
+- Apples (organic, 2 lbs)
+- Bread (whole wheat)
+- Milk (2%)
+- Eggs (dozen)</input>
+<output>
 {
-  "generatedJson": "{\\"name\\": \\"John Doe\\", \\"age\\": 30}",
-  "notes": "Assumed 'age' was a numeric field."
+  "generatedJson": "{\\"type\\": \\"shopping_list\\", \\"items\\": [{\\"name\\": \\"Apples\\", \\"specifications\\": \\"organic, 2 lbs\\"}, {\\"name\\": \\"Bread\\", \\"specifications\\": \\"whole wheat\\"}, {\\"name\\": \\"Milk\\", \\"specifications\\": \\"2%\\"}, {\\"name\\": \\"Eggs\\", \\"specifications\\": \\"dozen\\"}]}",
+  "notes": "Structured shopping list with semantic grouping. Extracted item names and specifications from parenthetical details."
 }
-Or for an array:
+</output>
+</example>
+
+<example>
+<input>Company: Acme Corp
+Founded: 2015
+Revenue: $5.2M
+Employees: 45
+CEO: Sarah Williams</input>
+<output>
 {
-  "generatedJson": "[\\"apple\\", \\"banana\\", \\"cherry\\"]"
+  "generatedJson": "{\\"company\\": {\\"name\\": \\"Acme Corp\\", \\"founded\\": 2015, \\"financial\\": {\\"revenue\\": \\"$5.2M\\"}, \\"staff\\": {\\"employee_count\\": 45, \\"ceo\\": \\"Sarah Williams\\"}}}",
+  "notes": "Organized company information into logical nested structure with financial and staff groupings for better semantic organization."
 }
-`,
+</output>
+</example>
+</examples>
+
+<rules>
+1. **Semantic Structure**: Create meaningful hierarchies that reflect natural data relationships
+2. **Data Type Intelligence**: Use appropriate JSON types (string, number, boolean, null) based on content analysis
+3. **Consistent Naming**: Use snake_case for keys, descriptive names that reflect content meaning
+4. **Nested Organization**: Group related information into nested objects when logical
+5. **Array Optimization**: Use arrays for repeated structures or list-like content
+6. **Value Preservation**: Maintain all original information while improving structure
+7. **JSON Validity**: Ensure proper escaping and valid JSON syntax
+8. **Error Recovery**: If malformed JSON is detected, apply intelligent correction
+</rules>
+
+<output_format>
+Return a JSON object with exactly two fields:
+- "generatedJson": A string containing the converted JSON (not a code block)
+- "notes": Optional string explaining decisions, assumptions, or structural choices made
+
+The generatedJson field must contain a valid JSON string that can be parsed by JSON.parse().
+</output_format>`,
 });
 
 const convertTextToJsonFlow = ai.defineFlow(
