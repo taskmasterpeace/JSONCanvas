@@ -3,6 +3,28 @@
 
 JSON Canvas AI is a cutting-edge web application that revolutionizes JSON editing through visual interfaces, advanced AI capabilities, and enterprise-grade performance. Built with Next.js 15, React 18, TypeScript, and powered by Google's Genkit AI framework, it delivers a comprehensive solution for complex JSON document management and manipulation.
 
+## 📸 Screenshots
+
+<div align="center">
+
+### Main Interface
+![JSON Canvas AI Main Interface](screenshots/main-interface.png)
+*Interactive JSON tree editor with multi-document management*
+
+### AI-Powered Features  
+![AI Enhancement Features](screenshots/ai-features.png)
+*Contextual AI enhancement and natural language JSON generation*
+
+### Document Management
+![Advanced Document Management](screenshots/document-management.png)  
+*Drag & drop document organization with search and filtering*
+
+### Schema Validation
+![JSON Schema Validation](screenshots/schema-validation.png)
+*Real-time validation with detailed error reporting*
+
+</div>
+
 ## 🌟 What's New in v2.0
 
 - **🎯 Multi-Provider AI Support**: Google AI (Gemini), OpenRouter (GPT-4, Claude), and Requesty integration
